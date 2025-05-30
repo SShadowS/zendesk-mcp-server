@@ -264,6 +264,32 @@ import axios from 'axios';
       async listChats(params) {
         return this.request('GET', '/chats.json', null, params);
       }
+
+      // Test connection
+      async testConnection() {
+        try {
+          const { subdomain, email, apiToken } = this.getCredentials();
+          
+          if (!subdomain || !email || !apiToken) {
+            throw new Error('Zendesk credentials not configured. Please set ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, and ZENDESK_API_TOKEN environment variables.');
+          }
+
+          console.log(`Testing connection to ${subdomain}.zendesk.com...`);
+          
+          // Test connection by fetching current user info
+          const response = await this.request('GET', '/users/me.json');
+          
+          if (response && response.user) {
+            console.log(`✓ Successfully connected to Zendesk as ${response.user.name} (${response.user.email})`);
+            return { success: true, user: response.user };
+          } else {
+            throw new Error('Unexpected response from Zendesk API');
+          }
+        } catch (error) {
+          console.error(`✗ Failed to connect to Zendesk: ${error.message}`);
+          throw error;
+        }
+      }
     }
 
     export const zendeskClient = new ZendeskClient();
