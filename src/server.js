@@ -100,4 +100,18 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
       }
     );
 
-    export { server };
+    // Initialize server and test connection
+    async function initializeServer() {
+      console.log('Initializing Zendesk MCP Server...');
+      
+      try {
+        await zendeskClient.testConnection();
+      } catch (error) {
+        console.error('Warning: Zendesk connection test failed. The server will start but API calls may fail.');
+        console.error('Please verify your environment variables: ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN');
+      }
+      
+      return server;
+    }
+
+    export { server, initializeServer };
