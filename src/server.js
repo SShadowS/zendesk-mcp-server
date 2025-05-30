@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
     import { zendeskClient } from './zendesk-client.js';
     import { ticketsTools } from './tools/tickets.js';

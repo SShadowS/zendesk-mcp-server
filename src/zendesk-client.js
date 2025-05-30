@@ -2,27 +2,39 @@ import axios from 'axios';
 
     class ZendeskClient {
       constructor() {
-        this.subdomain = process.env.ZENDESK_SUBDOMAIN;
-        this.email = process.env.ZENDESK_EMAIL;
-        this.apiToken = process.env.ZENDESK_API_TOKEN;
-        
-        if (!this.subdomain || !this.email || !this.apiToken) {
-          console.warn('Zendesk credentials not found in environment variables. Please set ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, and ZENDESK_API_TOKEN.');
+        // Don't load credentials in constructor - load them lazily
+      }
+
+      getCredentials() {
+        if (!this._credentials) {
+          this._credentials = {
+            subdomain: process.env.ZENDESK_SUBDOMAIN,
+            email: process.env.ZENDESK_EMAIL,
+            apiToken: process.env.ZENDESK_API_TOKEN
+          };
+          
+          if (!this._credentials.subdomain || !this._credentials.email || !this._credentials.apiToken) {
+            console.warn('Zendesk credentials not found in environment variables. Please set ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, and ZENDESK_API_TOKEN.');
+          }
         }
+        return this._credentials;
       }
 
       getBaseUrl() {
-        return `https://${this.subdomain}.zendesk.com/api/v2`;
+        const { subdomain } = this.getCredentials();
+        return `https://${subdomain}.zendesk.com/api/v2`;
       }
 
       getAuthHeader() {
-        const auth = Buffer.from(`${this.email}/token:${this.apiToken}`).toString('base64');
+        const { email, apiToken } = this.getCredentials();
+        const auth = Buffer.from(`${email}/token:${apiToken}`).toString('base64');
         return `Basic ${auth}`;
       }
 
       async request(method, endpoint, data = null, params = null) {
         try {
-          if (!this.subdomain || !this.email || !this.apiToken) {
+          const { subdomain, email, apiToken } = this.getCredentials();
+          if (!subdomain || !email || !apiToken) {
             throw new Error('Zendesk credentials not configured. Please set environment variables.');
           }
 
