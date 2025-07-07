@@ -56,7 +56,11 @@
             "test": "echo \"No tests configured yet. Run 'npm run inspect' to test manually.\"",
             "prepublishOnly": "npm run build:clean",
             "publish:npm": "npm run build:clean && npm run test && npm publish",
-            "publish:dry": "npm run build:clean && npm run test && npm publish --dry-run"
+            "publish:dry": "npm run build:clean && npm run test && npm publish --dry-run",
+            "publish:beta": "npm run build:clean && npm run test && npm publish --tag beta",
+            "publish:alpha": "npm run build:clean && npm run test && npm publish --tag alpha",
+            "version:beta": "npm version prerelease --preid=beta",
+            "version:alpha": "npm version prerelease --preid=alpha"
       },
       "dependencies": {
             "@anthropic-ai/sdk": "^0.52.0",
