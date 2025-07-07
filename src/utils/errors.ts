@@ -244,7 +244,17 @@ function extractValidationDetails(data: any): Record<string, any> | null {
 /**
  * Create a user-friendly error message for MCP responses
  */
-export function createErrorResponse(error: ZendeskError): { content: Array<{ type: 'text'; text: string }> } {
+export function createErrorResponse(error: any): { content: Array<{ type: 'text'; text: string }> } {
+  // Handle non-ZendeskError instances
+  if (!(error instanceof ZendeskError)) {
+    return {
+      content: [{
+        type: "text",
+        text: `Error: ${error?.message || error?.toString() || 'An unexpected error occurred'}`
+      }]
+    };
+  }
+  
   if (error instanceof ZendeskRateLimitError) {
     return {
       content: [{
