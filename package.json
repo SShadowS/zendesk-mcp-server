@@ -1,6 +1,6 @@
 {
       "name": "@sshadows/zendesk-mcp-server",
-      "version": "1.0.1-beta.6",
+      "version": "1.0.1-beta.7",
       "type": "module",
       "description": "MCP Server for Zendesk API with enhanced features",
       "main": "dist/index.js",
