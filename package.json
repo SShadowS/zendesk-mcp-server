@@ -4,8 +4,21 @@
       "type": "module",
       "description": "MCP Server for Zendesk API with enhanced features",
       "main": "dist/index.js",
+      "types": "dist/index.d.ts",
       "bin": {
             "zendesk-mcp": "dist/index.js"
+      },
+      "files": [
+            "dist/**/*",
+            "README.md",
+            "LICENSE",
+            "CLAUDE.md"
+      ],
+      "exports": {
+            ".": {
+                  "types": "./dist/index.d.ts",
+                  "import": "./dist/index.js"
+            }
       },
       "author": "SShadowS",
       "repository": {
@@ -21,7 +34,8 @@
             "support",
             "tickets",
             "customer-service",
-            "anthropic"
+            "anthropic",
+            "typescript"
       ],
       "homepage": "https://github.com/SShadowS/zendesk-mcp-server#readme",
       "bugs": {
@@ -38,7 +52,8 @@
             "typecheck": "tsc --noEmit",
             "start:dev": "node --watch dist/index.js",
             "inspect": "npx -y @modelcontextprotocol/inspector node dist/index.js",
-            "inspect:src": "npx -y @modelcontextprotocol/inspector node src/index.js"
+            "inspect:src": "npx -y @modelcontextprotocol/inspector node src/index.js",
+            "prepublishOnly": "npm run build:clean"
       },
       "dependencies": {
             "@anthropic-ai/sdk": "^0.52.0",
