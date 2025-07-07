@@ -22,10 +22,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error listing articles: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -45,10 +42,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error getting article: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -85,10 +79,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error creating article: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -125,10 +116,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error updating article: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -148,10 +136,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error deleting article: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       }

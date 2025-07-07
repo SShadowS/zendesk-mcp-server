@@ -20,10 +20,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error listing organizations: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -43,10 +40,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error getting organization: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -78,10 +72,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error creating organization: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -114,10 +105,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error updating organization: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -137,10 +125,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error deleting organization: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       }
