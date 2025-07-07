@@ -1,11 +1,24 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { initializeServer } from './server.js';
-import dotenv from 'dotenv';
 import { logger } from './utils/logger.js';
 
-// Load environment variables
-dotenv.config();
+// Don't load dotenv when running as MCP server - environment is provided by MCP
+// Only load for local development
+if (process.env.NODE_ENV === 'development') {
+  const dotenv = await import('dotenv');
+  dotenv.config();
+}
+
+// Debug: Log environment variables (without exposing secrets)
+logger.debug('Environment check', {
+  ZENDESK_SUBDOMAIN: process.env.ZENDESK_SUBDOMAIN,
+  ZENDESK_EMAIL: process.env.ZENDESK_EMAIL,
+  hasZendeskApiToken: !!process.env.ZENDESK_API_TOKEN,
+  hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+  nodeEnv: process.env.NODE_ENV,
+  cwd: process.cwd()
+});
 
 async function main(): Promise<void> {
   logger.info('Starting Zendesk API MCP server...');

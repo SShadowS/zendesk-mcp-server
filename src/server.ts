@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
+// Don't load dotenv here - environment should be provided by MCP or index.ts
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { zendeskClient } from './zendesk-client.js';
