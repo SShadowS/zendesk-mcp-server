@@ -53,7 +53,10 @@
             "start:dev": "node --watch dist/index.js",
             "inspect": "npx -y @modelcontextprotocol/inspector node dist/index.js",
             "inspect:src": "npx -y @modelcontextprotocol/inspector node src/index.js",
-            "prepublishOnly": "npm run build:clean"
+            "test": "echo \"No tests configured yet. Run 'npm run inspect' to test manually.\"",
+            "prepublishOnly": "npm run build:clean",
+            "publish:npm": "npm run build:clean && npm run test && npm publish",
+            "publish:dry": "npm run build:clean && npm run test && npm publish --dry-run"
       },
       "dependencies": {
             "@anthropic-ai/sdk": "^0.52.0",
