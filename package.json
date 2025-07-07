@@ -1,5 +1,5 @@
 {
-      "name": "zendesk-mcp-server",
+      "name": "@sshadows/zendesk-mcp-server",
       "version": "1.0.0",
       "type": "module",
       "description": "MCP Server for Zendesk API with enhanced features",
@@ -13,6 +13,23 @@
             "url": "https://github.com/SShadowS/zendesk-mcp-server.git"
       },
       "license": "MIT",
+      "keywords": [
+            "zendesk",
+            "mcp",
+            "model-context-protocol",
+            "api",
+            "support",
+            "tickets",
+            "customer-service",
+            "anthropic"
+      ],
+      "homepage": "https://github.com/SShadowS/zendesk-mcp-server#readme",
+      "bugs": {
+            "url": "https://github.com/SShadowS/zendesk-mcp-server/issues"
+      },
+      "engines": {
+            "node": ">=14.0.0"
+      },
       "scripts": {
             "start": "node src/index.js",
             "dev": "node --watch src/index.js",

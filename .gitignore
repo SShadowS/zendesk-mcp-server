@@ -82,3 +82,6 @@ out/
 *.pid
 *.seed
 *.pid.lock
+
+# Project specific
+PLAN.md
