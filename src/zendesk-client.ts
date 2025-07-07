@@ -55,12 +55,15 @@ class ZendeskClient {
         apiToken: process.env.ZENDESK_API_TOKEN
       };
       
-      logger.debug('Loading Zendesk credentials from environment', {
-        subdomain: this._credentials.subdomain,
-        email: this._credentials.email,
-        hasApiToken: !!this._credentials.apiToken,
-        apiTokenLength: this._credentials.apiToken?.length
-      });
+      // Only log in debug mode
+      if (logger.isDebugEnabled()) {
+        logger.debug('Loading Zendesk credentials from environment', {
+          subdomain: this._credentials.subdomain,
+          email: this._credentials.email,
+          hasApiToken: !!this._credentials.apiToken,
+          apiTokenLength: this._credentials.apiToken?.length
+        });
+      }
       
       if (!this._credentials.subdomain || !this._credentials.email || !this._credentials.apiToken) {
         logger.error('Zendesk credentials not found in environment variables', {
@@ -83,12 +86,15 @@ class ZendeskClient {
     const { email, apiToken } = this.getCredentials();
     // Zendesk API token auth format: {email}/token:{apiToken}
     const authString = `${email}/token:${apiToken}`;
-    logger.debug('Building auth header', { 
-      email,
-      authFormat: `${email}/token:***`,
-      hasToken: !!apiToken,
-      tokenLength: apiToken?.length
-    });
+    // Only log in debug mode
+    if (logger.isDebugEnabled()) {
+      logger.debug('Building auth header', { 
+        email,
+        authFormat: `${email}/token:***`,
+        hasToken: !!apiToken,
+        tokenLength: apiToken?.length
+      });
+    }
     const auth = Buffer.from(authString).toString('base64');
     return `Basic ${auth}`;
   }
@@ -145,11 +151,13 @@ class ZendeskClient {
         try {
           const axiosResponse: AxiosResponse<T> = await axios(requestConfig);
           
-          // Log success in debug mode
-          logger.debug(`[Zendesk API] Success: ${method} ${endpoint}`, {
-            status: axiosResponse.status,
-            hasData: !!axiosResponse.data
-          });
+          // Only log success in debug mode
+          if (logger.isDebugEnabled()) {
+            logger.debug(`[Zendesk API] Success: ${method} ${endpoint}`, {
+              status: axiosResponse.status,
+              hasData: !!axiosResponse.data
+            });
+          }
           
           return axiosResponse.data;
         } catch (error: any) {
@@ -161,11 +169,13 @@ class ZendeskClient {
       return response;
     } catch (error: any) {
       // Log error details in debug mode
-      logger.debug(`[Zendesk API] Failed: ${method} ${endpoint}`, {
-        errorType: error.name,
-        statusCode: error.statusCode,
-        message: error.message
-      });
+      if (logger.isDebugEnabled()) {
+        logger.debug(`[Zendesk API] Failed: ${method} ${endpoint}`, {
+          errorType: error.name,
+          statusCode: error.statusCode,
+          message: error.message
+        });
+      }
       
       // Re-throw the classified error
       throw error;
@@ -454,13 +464,19 @@ class ZendeskClient {
         );
       }
 
-      logger.info(`Testing connection to ${subdomain}.zendesk.com...`);
+      // Only log in debug mode
+      if (logger.isDebugEnabled()) {
+        logger.debug(`Testing connection to ${subdomain}.zendesk.com...`);
+      }
       
       // Test connection by fetching current user info (no retry for test)
       const response = await this.request<{ user: ZendeskUser }>('GET', '/users/me.json', null, null, 'none');
       
       if (response && response.user) {
-        logger.info(`✓ Successfully connected to Zendesk as ${response.user.name} (${response.user.email})`);
+        // Only log success in debug mode
+        if (logger.isDebugEnabled()) {
+          logger.debug(`✓ Successfully connected to Zendesk as ${response.user.name} (${response.user.email})`);
+        }
         return { success: true, user: response.user };
       } else {
         throw new Error('Unexpected response from Zendesk API');

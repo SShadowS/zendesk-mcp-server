@@ -11,14 +11,16 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Debug: Log environment variables (without exposing secrets)
-logger.debug('Environment check', {
-  ZENDESK_SUBDOMAIN: process.env.ZENDESK_SUBDOMAIN,
-  ZENDESK_EMAIL: process.env.ZENDESK_EMAIL,
-  hasZendeskApiToken: !!process.env.ZENDESK_API_TOKEN,
-  hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
-  nodeEnv: process.env.NODE_ENV,
-  cwd: process.cwd()
-});
+if (logger.isDebugEnabled()) {
+  logger.debug('Environment check', {
+    ZENDESK_SUBDOMAIN: process.env.ZENDESK_SUBDOMAIN,
+    ZENDESK_EMAIL: process.env.ZENDESK_EMAIL,
+    hasZendeskApiToken: !!process.env.ZENDESK_API_TOKEN,
+    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+    nodeEnv: process.env.NODE_ENV,
+    cwd: process.cwd()
+  });
+}
 
 async function main(): Promise<void> {
   // Get version from package.json
@@ -30,22 +32,32 @@ async function main(): Promise<void> {
   const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
   const version = packageJson.version;
   
-  logger.info(`Starting Zendesk API MCP server v${version}...`);
-  logger.debug('Environment loaded, debug mode:', logger.isDebugEnabled());
+  // Minimal startup logging - only show version in normal mode
+  if (logger.isDebugEnabled()) {
+    logger.debug(`Starting Zendesk API MCP server v${version}...`);
+    logger.debug('Environment loaded, debug mode:', logger.isDebugEnabled());
+  }
 
   try {
     // Initialize server and test connection
-    logger.debug('Initializing server...');
+    if (logger.isDebugEnabled()) {
+      logger.debug('Initializing server...');
+    }
     const server = await initializeServer();
 
     // Start receiving messages on stdin and sending messages on stdout
-    logger.debug('Creating StdioServerTransport...');
+    if (logger.isDebugEnabled()) {
+      logger.debug('Creating StdioServerTransport...');
+    }
     const transport = new StdioServerTransport();
     
-    logger.debug('Connecting server to transport...');
+    if (logger.isDebugEnabled()) {
+      logger.debug('Connecting server to transport...');
+    }
     await server.connect(transport);
     
-    logger.info(`MCP server v${version} started successfully, waiting for connections...`);
+    // Simple, clean startup message
+    logger.info(`Zendesk MCP Server v${version} ready`);
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
