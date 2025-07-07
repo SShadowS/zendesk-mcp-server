@@ -37,13 +37,22 @@ const documentationSections: Record<string, string> = {
   "overview": "The Zendesk API is a RESTful API that uses JSON for serialization. It provides access to Zendesk Support, Talk, Chat, and Guide products."
 };
 
+// Get version from package.json
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
+const version = packageJson.version;
+
 // Create an MCP server for Zendesk API
 const server = new McpServer({
   name: "Zendesk API",
-  version: "1.0.0"
+  version: version
 });
 
-logger.debug('MCP Server instance created', { name: 'Zendesk API', version: '1.0.0' });
+logger.debug('MCP Server instance created', { name: 'Zendesk API', version });
 
 // Register all tools
 const allTools = [
@@ -151,7 +160,7 @@ async function initializeServer(): Promise<McpServer> {
     logger.debug(`Anthropic connection error: ${error.message}`);
   }
   
-  logger.info('Server initialization complete');
+  logger.info(`Server initialization complete (v${version})`);
   return server;
 }
 

@@ -21,7 +21,16 @@ logger.debug('Environment check', {
 });
 
 async function main(): Promise<void> {
-  logger.info('Starting Zendesk API MCP server...');
+  // Get version from package.json
+  const { readFileSync } = await import('fs');
+  const { join, dirname } = await import('path');
+  const { fileURLToPath } = await import('url');
+  
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
+  const version = packageJson.version;
+  
+  logger.info(`Starting Zendesk API MCP server v${version}...`);
   logger.debug('Environment loaded, debug mode:', logger.isDebugEnabled());
 
   try {
