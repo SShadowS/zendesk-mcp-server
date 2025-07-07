@@ -11,26 +11,78 @@
     - Resources for accessing Zendesk API documentation
     - Secure authentication with Zendesk API tokens
 
-    ## Getting Started
+    ## Installation
+
+    ### Via npm (Recommended for MCP usage)
+
+    ```bash
+    npm install -g @sshadows/zendesk-mcp-server
+    ```
+
+    ### Via Source
+
+    ```bash
+    git clone https://github.com/SShadowS/zendesk-mcp-server.git
+    cd zendesk-mcp-server
+    npm install
+    ```
+
+    ## Configuration
 
     ### Prerequisites
 
     - Node.js 14 or higher
     - A Zendesk account with API access
+    - Zendesk API token (generate from Zendesk Admin > API)
 
-    ### Installation
+    ### Environment Setup
 
-    1. Clone this repository
-    2. Install dependencies:
-       ```
-       npm install
-       ```
-    3. Create a `.env` file with your Zendesk credentials:
-       ```
-       ZENDESK_SUBDOMAIN=your-subdomain
-       ZENDESK_EMAIL=your-email@example.com
-       ZENDESK_API_TOKEN=your-api-token
-       ```
+    Create a `.env` file with your credentials:
+    ```
+    ZENDESK_SUBDOMAIN=your-subdomain
+    ZENDESK_EMAIL=your-email@example.com
+    ZENDESK_API_TOKEN=your-api-token
+    ANTHROPIC_API_KEY=your-anthropic-api-key  # Required for AI-powered features
+    ```
+
+    ### MCP Configuration
+
+    Add to your MCP settings file (e.g., `~/.config/mcp/settings.json`):
+
+    ```json
+    {
+      "servers": {
+        "zendesk": {
+          "command": "npx",
+          "args": ["@sshadows/zendesk-mcp-server"],
+          "env": {
+            "ZENDESK_SUBDOMAIN": "your-subdomain",
+            "ZENDESK_EMAIL": "your-email@example.com",
+            "ZENDESK_API_TOKEN": "your-api-token",
+            "ANTHROPIC_API_KEY": "your-anthropic-api-key"
+          }
+        }
+      }
+    }
+    ```
+
+    Or if installed globally:
+
+    ```json
+    {
+      "servers": {
+        "zendesk": {
+          "command": "zendesk-mcp",
+          "env": {
+            "ZENDESK_SUBDOMAIN": "your-subdomain",
+            "ZENDESK_EMAIL": "your-email@example.com",
+            "ZENDESK_API_TOKEN": "your-api-token",
+            "ANTHROPIC_API_KEY": "your-anthropic-api-key"
+          }
+        }
+      }
+    }
+    ```
 
     ### Running the Server
 

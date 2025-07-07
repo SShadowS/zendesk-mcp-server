@@ -1,0 +1,34 @@
+# Development files
+PLAN.md
+.env
+.env.local
+.env.*.local
+*.log
+
+# Git files
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+.claude/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Tests (if added later)
+test/
+tests/
+__tests__/
+*.test.js
+*.spec.js
+
+# Documentation files (optional - keep these if you want)
+# README.md
+# CLAUDE.md
+
+# Package files
+*.tgz
+package-lock.json
