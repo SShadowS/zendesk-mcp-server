@@ -55,7 +55,19 @@ class ZendeskClient {
         apiToken: process.env.ZENDESK_API_TOKEN
       };
       
+      logger.debug('Loading Zendesk credentials from environment', {
+        subdomain: this._credentials.subdomain,
+        email: this._credentials.email,
+        hasApiToken: !!this._credentials.apiToken,
+        apiTokenLength: this._credentials.apiToken?.length
+      });
+      
       if (!this._credentials.subdomain || !this._credentials.email || !this._credentials.apiToken) {
+        logger.error('Zendesk credentials not found in environment variables', {
+          hasSubdomain: !!this._credentials.subdomain,
+          hasEmail: !!this._credentials.email,
+          hasApiToken: !!this._credentials.apiToken
+        });
         console.warn('Zendesk credentials not found in environment variables. Please set ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, and ZENDESK_API_TOKEN.');
       }
     }
@@ -69,7 +81,15 @@ class ZendeskClient {
 
   private getAuthHeader(): string {
     const { email, apiToken } = this.getCredentials();
-    const auth = Buffer.from(`${email}/token:${apiToken}`).toString('base64');
+    // Zendesk API token auth format: {email}/token:{apiToken}
+    const authString = `${email}/token:${apiToken}`;
+    logger.debug('Building auth header', { 
+      email,
+      authFormat: `${email}/token:***`,
+      hasToken: !!apiToken,
+      tokenLength: apiToken?.length
+    });
+    const auth = Buffer.from(authString).toString('base64');
     return `Basic ${auth}`;
   }
 
