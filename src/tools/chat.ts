@@ -8,8 +8,8 @@ export const chatTools: McpTool[] = [
     name: "list_chats",
     description: "List Zendesk Chat conversations",
     schema: {
-      page: z.number().optional().describe("Page number for pagination"),
-      per_page: z.number().optional().describe("Number of chats per page (max 100)")
+      page: z.coerce.number().optional().describe("Page number for pagination"),
+      per_page: z.coerce.number().optional().describe("Number of chats per page (max 100)")
     },
     handler: async ({ page, per_page }: {
       page?: number;

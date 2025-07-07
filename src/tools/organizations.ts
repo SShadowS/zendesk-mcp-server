@@ -8,8 +8,8 @@ export const organizationsTools: McpTool[] = [
     name: "list_organizations",
     description: "List organizations in Zendesk",
     schema: {
-      page: z.number().optional().describe("Page number for pagination"),
-      per_page: z.number().optional().describe("Number of organizations per page (max 100)")
+      page: z.coerce.number().optional().describe("Page number for pagination"),
+      per_page: z.coerce.number().optional().describe("Number of organizations per page (max 100)")
     },
     handler: async ({ page, per_page }: {
       page?: number;
@@ -33,7 +33,7 @@ export const organizationsTools: McpTool[] = [
     name: "get_organization",
     description: "Get a specific organization by ID",
     schema: {
-      id: z.number().describe("Organization ID")
+      id: z.coerce.number().describe("Organization ID")
     },
     handler: async ({ id }: { id: number }): Promise<McpToolResponse> => {
       try {
@@ -91,7 +91,7 @@ export const organizationsTools: McpTool[] = [
     name: "update_organization",
     description: "Update an existing organization",
     schema: {
-      id: z.number().describe("Organization ID to update"),
+      id: z.coerce.number().describe("Organization ID to update"),
       name: z.string().optional().describe("Updated organization name"),
       domain_names: z.array(z.string()).optional().describe("Updated domain names"),
       details: z.string().optional().describe("Updated details"),
@@ -131,7 +131,7 @@ export const organizationsTools: McpTool[] = [
     name: "delete_organization",
     description: "Delete an organization",
     schema: {
-      id: z.number().describe("Organization ID to delete")
+      id: z.coerce.number().describe("Organization ID to delete")
     },
     handler: async ({ id }: { id: number }): Promise<McpToolResponse> => {
       try {

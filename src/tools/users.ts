@@ -8,8 +8,8 @@ export const usersTools: McpTool[] = [
     name: "list_users",
     description: "List users in Zendesk",
     schema: {
-      page: z.number().optional().describe("Page number for pagination"),
-      per_page: z.number().optional().describe("Number of users per page (max 100)"),
+      page: z.coerce.number().optional().describe("Page number for pagination"),
+      per_page: z.coerce.number().optional().describe("Number of users per page (max 100)"),
       role: z.enum(["end-user", "agent", "admin"]).optional().describe("Filter users by role")
     },
     handler: async ({ page, per_page, role }: {
@@ -35,7 +35,7 @@ export const usersTools: McpTool[] = [
     name: "get_user",
     description: "Get a specific user by ID",
     schema: {
-      id: z.number().describe("User ID")
+      id: z.coerce.number().describe("User ID")
     },
     handler: async ({ id }: { id: number }): Promise<McpToolResponse> => {
       try {
@@ -59,7 +59,7 @@ export const usersTools: McpTool[] = [
       email: z.string().email().describe("User's email address"),
       role: z.enum(["end-user", "agent", "admin"]).optional().describe("User's role"),
       phone: z.string().optional().describe("User's phone number"),
-      organization_id: z.number().optional().describe("ID of the user's organization"),
+      organization_id: z.coerce.number().optional().describe("ID of the user's organization"),
       tags: z.array(z.string()).optional().describe("Tags for the user"),
       notes: z.string().optional().describe("Notes about the user")
     },
@@ -99,12 +99,12 @@ export const usersTools: McpTool[] = [
     name: "update_user",
     description: "Update an existing user",
     schema: {
-      id: z.number().describe("User ID to update"),
+      id: z.coerce.number().describe("User ID to update"),
       name: z.string().optional().describe("Updated user's name"),
       email: z.string().email().optional().describe("Updated email address"),
       role: z.enum(["end-user", "agent", "admin"]).optional().describe("Updated user's role"),
       phone: z.string().optional().describe("Updated phone number"),
-      organization_id: z.number().optional().describe("Updated organization ID"),
+      organization_id: z.coerce.number().optional().describe("Updated organization ID"),
       tags: z.array(z.string()).optional().describe("Updated tags for the user"),
       notes: z.string().optional().describe("Updated notes about the user")
     },
@@ -145,7 +145,7 @@ export const usersTools: McpTool[] = [
     name: "delete_user",
     description: "Delete a user",
     schema: {
-      id: z.number().describe("User ID to delete")
+      id: z.coerce.number().describe("User ID to delete")
     },
     handler: async ({ id }: { id: number }): Promise<McpToolResponse> => {
       try {

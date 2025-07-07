@@ -10,8 +10,8 @@ export const ticketsTools: McpTool[] = [
     name: "list_tickets",
     description: "List tickets in Zendesk",
     schema: {
-      page: z.number().optional().describe("Page number for pagination"),
-      per_page: z.number().optional().describe("Number of tickets per page (max 100)"),
+      page: z.coerce.number().optional().describe("Page number for pagination"),
+      per_page: z.coerce.number().optional().describe("Number of tickets per page (max 100)"),
       sort_by: z.string().optional().describe("Field to sort by"),
       sort_order: z.enum(["asc", "desc"]).optional().describe("Sort order (asc or desc)")
     },
@@ -41,7 +41,7 @@ export const ticketsTools: McpTool[] = [
     name: "get_ticket",
     description: "Get a specific ticket by ID with optional comments",
     schema: {
-      id: z.number().describe("Ticket ID"),
+      id: z.coerce.number().describe("Ticket ID"),
       include_comments: z.boolean().optional().describe("Include ticket comments in response (default: false)")
     },
     handler: async ({ id, include_comments = false }: {
@@ -51,6 +51,7 @@ export const ticketsTools: McpTool[] = [
       logger.debug('Tool called: get_ticket', { id, include_comments });
       try {
         const result = await zendeskClient.getTicket(id, include_comments);
+        logger.debug('get_ticket successful', { id });
         return {
           content: [{ 
             type: "text", 
@@ -58,6 +59,7 @@ export const ticketsTools: McpTool[] = [
           }]
         };
       } catch (error: any) {
+        logger.error('get_ticket failed:', { id, error: error.message, statusCode: error.statusCode });
         return createErrorResponse(error);
       }
     }
@@ -70,9 +72,9 @@ export const ticketsTools: McpTool[] = [
       comment: z.string().describe("Ticket comment/description"),
       priority: z.enum(["urgent", "high", "normal", "low"]).optional().describe("Ticket priority"),
       status: z.enum(["new", "open", "pending", "hold", "solved", "closed"]).optional().describe("Ticket status"),
-      requester_id: z.number().optional().describe("User ID of the requester"),
-      assignee_id: z.number().optional().describe("User ID of the assignee"),
-      group_id: z.number().optional().describe("Group ID for the ticket"),
+      requester_id: z.coerce.number().optional().describe("User ID of the requester"),
+      assignee_id: z.coerce.number().optional().describe("User ID of the assignee"),
+      group_id: z.coerce.number().optional().describe("Group ID for the ticket"),
       type: z.enum(["problem", "incident", "question", "task"]).optional().describe("Ticket type"),
       tags: z.array(z.string()).optional().describe("Tags for the ticket")
     },
@@ -116,13 +118,13 @@ export const ticketsTools: McpTool[] = [
     name: "update_ticket",
     description: "Update an existing ticket",
     schema: {
-      id: z.number().describe("Ticket ID to update"),
+      id: z.coerce.number().describe("Ticket ID to update"),
       subject: z.string().optional().describe("Updated ticket subject"),
       comment: z.string().optional().describe("New comment to add"),
       priority: z.enum(["urgent", "high", "normal", "low"]).optional().describe("Updated ticket priority"),
       status: z.enum(["new", "open", "pending", "hold", "solved", "closed"]).optional().describe("Updated ticket status"),
-      assignee_id: z.number().optional().describe("User ID of the new assignee"),
-      group_id: z.number().optional().describe("New group ID for the ticket"),
+      assignee_id: z.coerce.number().optional().describe("User ID of the new assignee"),
+      group_id: z.coerce.number().optional().describe("New group ID for the ticket"),
       type: z.enum(["problem", "incident", "question", "task"]).optional().describe("Updated ticket type"),
       tags: z.array(z.string()).optional().describe("Updated tags for the ticket")
     },
@@ -165,7 +167,7 @@ export const ticketsTools: McpTool[] = [
     name: "delete_ticket",
     description: "Delete a ticket",
     schema: {
-      id: z.number().describe("Ticket ID to delete")
+      id: z.coerce.number().describe("Ticket ID to delete")
     },
     handler: async ({ id }: { id: number }): Promise<McpToolResponse> => {
       try {
@@ -185,9 +187,9 @@ export const ticketsTools: McpTool[] = [
     name: "get_ticket_comments",
     description: "Get comments for a specific ticket",
     schema: {
-      id: z.number().describe("Ticket ID"),
-      page: z.number().optional().describe("Page number for pagination"),
-      per_page: z.number().optional().describe("Number of comments per page (max 100)"),
+      id: z.coerce.number().describe("Ticket ID"),
+      page: z.coerce.number().optional().describe("Page number for pagination"),
+      per_page: z.coerce.number().optional().describe("Number of comments per page (max 100)"),
       sort_order: z.enum(["asc", "desc"]).optional().describe("Sort order (asc or desc)")
     },
     handler: async ({ id, page, per_page, sort_order }: {
@@ -214,10 +216,10 @@ export const ticketsTools: McpTool[] = [
     name: "add_ticket_comment",
     description: "Add a public or internal comment to an existing ticket",
     schema: {
-      id: z.number().describe("Ticket ID"),
+      id: z.coerce.number().describe("Ticket ID"),
       body: z.string().describe("Comment body"),
       type: z.enum(["public", "internal"]).optional().describe("Comment type: 'public' (visible to end users) or 'internal' (agents only). Default: 'internal'"),
-      author_id: z.number().optional().describe("Author ID (defaults to current user)")
+      author_id: z.coerce.number().optional().describe("Author ID (defaults to current user)")
     },
     handler: async ({ id, body, type = "internal", author_id }: {
       id: number;
@@ -248,7 +250,7 @@ export const ticketsTools: McpTool[] = [
     name: "get_ticket_attachments",
     description: "Get all attachments from a ticket's comments",
     schema: {
-      id: z.number().describe("Ticket ID")
+      id: z.coerce.number().describe("Ticket ID")
     },
     handler: async ({ id }: { id: number }): Promise<McpToolResponse> => {
       try {
@@ -268,7 +270,7 @@ export const ticketsTools: McpTool[] = [
     name: "analyze_ticket_images",
     description: "Download and analyze images from a ticket using AI vision",
     schema: {
-      id: z.number().describe("Ticket ID"),
+      id: z.coerce.number().describe("Ticket ID"),
       analysis_prompt: z.string().optional().describe("Custom analysis prompt (default: general image description)")
     },
     handler: async ({ id, analysis_prompt = "Describe this image in detail, including any text, UI elements, error messages, or relevant information visible." }: {

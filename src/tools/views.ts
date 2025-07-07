@@ -8,8 +8,8 @@ export const viewsTools: McpTool[] = [
     name: "list_views",
     description: "List views in Zendesk",
     schema: {
-      page: z.number().optional().describe("Page number for pagination"),
-      per_page: z.number().optional().describe("Number of views per page (max 100)")
+      page: z.coerce.number().optional().describe("Page number for pagination"),
+      per_page: z.coerce.number().optional().describe("Number of views per page (max 100)")
     },
     handler: async ({ page, per_page }: {
       page?: number;
@@ -33,7 +33,7 @@ export const viewsTools: McpTool[] = [
     name: "get_view",
     description: "Get a specific view by ID",
     schema: {
-      id: z.number().describe("View ID")
+      id: z.coerce.number().describe("View ID")
     },
     handler: async ({ id }: { id: number }): Promise<McpToolResponse> => {
       try {
@@ -102,7 +102,7 @@ export const viewsTools: McpTool[] = [
     name: "update_view",
     description: "Update an existing view",
     schema: {
-      id: z.number().describe("View ID to update"),
+      id: z.coerce.number().describe("View ID to update"),
       title: z.string().optional().describe("Updated view title"),
       description: z.string().optional().describe("Updated view description"),
       conditions: z.object({
@@ -155,7 +155,7 @@ export const viewsTools: McpTool[] = [
     name: "delete_view",
     description: "Delete a view",
     schema: {
-      id: z.number().describe("View ID to delete")
+      id: z.coerce.number().describe("View ID to delete")
     },
     handler: async ({ id }: { id: number }): Promise<McpToolResponse> => {
       try {
