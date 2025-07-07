@@ -59,10 +59,15 @@ This is a Model Context Protocol (MCP) server that provides comprehensive access
 
 ### Authentication
 
-The server requires three environment variables:
+The server requires the following environment variables:
+
+**Zendesk Authentication (Required):**
 - `ZENDESK_SUBDOMAIN` - Your Zendesk subdomain (e.g., "mycompany" for mycompany.zendesk.com)
 - `ZENDESK_EMAIL` - Email address of the Zendesk user
 - `ZENDESK_API_TOKEN` - API token for authentication
+
+**Anthropic API (Optional - for image analysis features):**
+- `ANTHROPIC_API_KEY` - API key for Anthropic Claude (required for `analyze_ticket_images` function)
 
 These should be configured in a `.env` file at the project root.
 

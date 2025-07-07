@@ -1,12 +1,8 @@
 import { z } from 'zod';
 import { zendeskClient } from '../zendesk-client.js';
 import { createErrorResponse } from '../utils/errors.js';
-import Anthropic from '@anthropic-ai/sdk';
+import { anthropicClient } from '../anthropic-client.js';
 import { McpTool, McpToolResponse } from '../types/index.js';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
 
 export const ticketsTools: McpTool[] = [
   {
@@ -335,7 +331,7 @@ export const ticketsTools: McpTool[] = [
             try {
               // Analyze image with Claude's vision API
               const base64Data = analysis.image_data.split(',')[1];
-              const message = await anthropic.messages.create({
+              const message = await anthropicClient.createMessage({
                 model: "claude-sonnet-4-20250514",
                 max_tokens: 1000,
                 messages: [
@@ -359,7 +355,7 @@ export const ticketsTools: McpTool[] = [
                 ]
               });
               
-              const visionAnalysis = (message.content[0] as any).text;
+              const visionAnalysis = ((message as any).content[0] as any).text;
               resultText += `🔍 AI Analysis:\n${visionAnalysis}\n\n`;
               
             } catch (visionError: any) {
