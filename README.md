@@ -2,6 +2,8 @@
 
     A comprehensive Model Context Protocol (MCP) server for interacting with the Zendesk API. This server provides tools and resources for managing Zendesk Support, Talk, Chat, and Guide products.
 
+    > This project is based on the original work by [mattcoatsworth](https://github.com/mattcoatsworth/zendesk-mcp-server) with enhancements including AI-powered ticket analysis, improved error handling, and security improvements.
+
     ## Features
 
     - Complete coverage of Zendesk API functionality
