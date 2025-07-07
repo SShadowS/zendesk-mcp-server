@@ -2,22 +2,27 @@
  * Retry logic utilities for Zendesk API requests
  */
 
-import { ZendeskRateLimitError } from './errors.js';
+import { AxiosError } from 'axios';
+import { ZendeskRateLimitError, ZendeskError } from './errors.js';
+import { RetryConfig, RetryProfiles } from '../types/config.js';
 
 // Default configuration
-const DEFAULT_CONFIG = {
-  maxRetries: parseInt(process.env.ZENDESK_MAX_RETRIES) || 3,
-  initialDelay: parseInt(process.env.ZENDESK_RETRY_DELAY) || 1000,
-  maxDelay: parseInt(process.env.ZENDESK_RETRY_MAX_DELAY) || 30000,
-  backoffMultiplier: 2,
-  jitter: true
+const DEFAULT_CONFIG: RetryConfig = {
+  maxRetries: parseInt(process.env.ZENDESK_MAX_RETRIES || '3', 10),
+  baseDelay: parseInt(process.env.ZENDESK_RETRY_DELAY || '1000', 10),
+  maxDelay: parseInt(process.env.ZENDESK_RETRY_MAX_DELAY || '30000', 10),
+  factor: 2
 };
+
+interface RetryConfigWithJitter extends RetryConfig {
+  jitter?: boolean;
+}
 
 /**
  * Calculate exponential backoff delay with optional jitter
  */
-function calculateBackoff(attempt, config = DEFAULT_CONFIG) {
-  const exponentialDelay = config.initialDelay * Math.pow(config.backoffMultiplier, attempt - 1);
+function calculateBackoff(attempt: number, config: RetryConfigWithJitter = { ...DEFAULT_CONFIG, jitter: true }): number {
+  const exponentialDelay = config.baseDelay * Math.pow(config.factor, attempt - 1);
   const delay = Math.min(exponentialDelay, config.maxDelay);
   
   if (config.jitter) {
@@ -33,30 +38,35 @@ function calculateBackoff(attempt, config = DEFAULT_CONFIG) {
 /**
  * Sleep for specified milliseconds
  */
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
  * Determine if an error is retryable
  */
-function isRetryable(error) {
+function isRetryable(error: any): boolean {
   // Use the isRetryable property if it exists
-  if (error.isRetryable !== undefined) {
+  if (error instanceof ZendeskError) {
     return error.isRetryable;
   }
   
-  // Network errors are generally retryable
-  if (!error.response && error.code) {
-    const retryableCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'EHOSTUNREACH'];
-    return retryableCodes.includes(error.code);
-  }
-  
-  // Check status codes
-  if (error.response && error.response.status) {
-    const status = error.response.status;
-    // Retry on rate limits, server errors, and some client errors
-    return status === 429 || status >= 500 || status === 408 || status === 409;
+  // Check if it's an Axios error
+  if (error.isAxiosError) {
+    const axiosError = error as AxiosError;
+    
+    // Network errors are generally retryable
+    if (!axiosError.response && axiosError.code) {
+      const retryableCodes = ['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'EHOSTUNREACH'];
+      return retryableCodes.includes(axiosError.code);
+    }
+    
+    // Check status codes
+    if (axiosError.response && axiosError.response.status) {
+      const status = axiosError.response.status;
+      // Retry on rate limits, server errors, and some client errors
+      return status === 429 || status >= 500 || status === 408 || status === 409;
+    }
   }
   
   return false;
@@ -64,16 +74,19 @@ function isRetryable(error) {
 
 /**
  * Execute a function with retry logic
- * 
- * @param {Function} fn - The async function to execute
- * @param {Object} options - Retry configuration options
- * @returns {Promise} - The result of the function or throws the final error
  */
-export async function withRetry(fn, options = {}) {
-  const config = { ...DEFAULT_CONFIG, ...options };
+export async function withRetry<T>(
+  fn: () => Promise<T>, 
+  options: Partial<RetryConfigWithJitter> = {}
+): Promise<T> {
+  const config: RetryConfigWithJitter = { 
+    ...DEFAULT_CONFIG, 
+    jitter: true,
+    ...options 
+  };
   const debug = process.env.ZENDESK_DEBUG === 'true';
   
-  let lastError;
+  let lastError: any;
   
   for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
     try {
@@ -93,7 +106,7 @@ export async function withRetry(fn, options = {}) {
       // Check if we should retry
       if (!isRetryable(error) || attempt === config.maxRetries) {
         if (debug) {
-          console.error(`[Retry] Failed after ${attempt} attempt(s):`, error.message);
+          console.error(`[Retry] Failed after ${attempt} attempt(s):`, (error as Error).message);
         }
         throw error;
       }
@@ -124,49 +137,44 @@ export async function withRetry(fn, options = {}) {
 /**
  * Create a retry wrapper for a specific configuration
  */
-export function createRetryWrapper(defaultOptions = {}) {
-  return (fn) => withRetry(fn, defaultOptions);
+export function createRetryWrapper(defaultOptions: Partial<RetryConfigWithJitter> = {}) {
+  return <T>(fn: () => Promise<T>) => withRetry(fn, defaultOptions);
 }
 
 /**
  * Retry configuration builder for specific scenarios
  */
-export const RetryProfiles = {
+export const retryProfiles: RetryProfiles = {
+  // Default retry configuration
+  default: {
+    maxRetries: 3,
+    baseDelay: 1000,
+    maxDelay: 30000,
+    factor: 2
+  },
+  
+  // Upload operations (longer delays, more retries)
+  upload: {
+    maxRetries: 5,
+    baseDelay: 2000,
+    maxDelay: 60000,
+    factor: 2
+  },
+  
   // Aggressive retry for critical operations
   aggressive: {
     maxRetries: 5,
-    initialDelay: 500,
+    baseDelay: 500,
     maxDelay: 60000,
-    backoffMultiplier: 2
-  },
-  
-  // Conservative retry for less critical operations
-  conservative: {
-    maxRetries: 2,
-    initialDelay: 2000,
-    maxDelay: 10000,
-    backoffMultiplier: 2
-  },
-  
-  // No retry
-  none: {
-    maxRetries: 1
-  },
-  
-  // Rate limit aware (longer delays)
-  rateLimitAware: {
-    maxRetries: 3,
-    initialDelay: 5000,
-    maxDelay: 120000,
-    backoffMultiplier: 3
+    factor: 2
   }
 };
 
 /**
  * Extract retry information from an error for logging
  */
-export function getRetryInfo(error, attempt, maxRetries) {
-  const info = {
+export function getRetryInfo(error: any, attempt: number, maxRetries: number): Record<string, any> {
+  const info: Record<string, any> = {
     attempt,
     maxRetries,
     isRetryable: isRetryable(error),

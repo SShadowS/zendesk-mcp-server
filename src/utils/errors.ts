@@ -1,9 +1,21 @@
+import { AxiosError } from 'axios';
+
 /**
  * Custom error classes for Zendesk API errors
  */
 
 export class ZendeskError extends Error {
-  constructor(message, statusCode, response, isRetryable = false) {
+  public readonly statusCode: number | null;
+  public readonly response: any;
+  public readonly isRetryable: boolean;
+  public readonly timestamp: string;
+
+  constructor(
+    message: string, 
+    statusCode: number | null = null, 
+    response: any = null, 
+    isRetryable: boolean = false
+  ) {
     super(message);
     this.name = 'ZendeskError';
     this.statusCode = statusCode;
@@ -12,7 +24,7 @@ export class ZendeskError extends Error {
     this.timestamp = new Date().toISOString();
   }
 
-  toJSON() {
+  toJSON(): Record<string, any> {
     return {
       name: this.name,
       message: this.message,
@@ -25,7 +37,14 @@ export class ZendeskError extends Error {
 }
 
 export class ZendeskRateLimitError extends ZendeskError {
-  constructor(message, statusCode, response, retryAfter) {
+  public readonly retryAfter: number;
+
+  constructor(
+    message: string, 
+    statusCode: number, 
+    response: any, 
+    retryAfter: number
+  ) {
     super(message, statusCode, response, true);
     this.name = 'ZendeskRateLimitError';
     this.retryAfter = retryAfter;
@@ -33,21 +52,28 @@ export class ZendeskRateLimitError extends ZendeskError {
 }
 
 export class ZendeskAuthError extends ZendeskError {
-  constructor(message, statusCode, response) {
+  constructor(message: string, statusCode: number, response: any) {
     super(message, statusCode, response, false);
     this.name = 'ZendeskAuthError';
   }
 }
 
 export class ZendeskNotFoundError extends ZendeskError {
-  constructor(message, statusCode, response) {
+  constructor(message: string, statusCode: number, response: any) {
     super(message, statusCode, response, false);
     this.name = 'ZendeskNotFoundError';
   }
 }
 
 export class ZendeskValidationError extends ZendeskError {
-  constructor(message, statusCode, response, validationDetails) {
+  public readonly validationDetails: Record<string, any> | null;
+
+  constructor(
+    message: string, 
+    statusCode: number, 
+    response: any, 
+    validationDetails: Record<string, any> | null
+  ) {
     super(message, statusCode, response, false);
     this.name = 'ZendeskValidationError';
     this.validationDetails = validationDetails;
@@ -55,14 +81,16 @@ export class ZendeskValidationError extends ZendeskError {
 }
 
 export class ZendeskServerError extends ZendeskError {
-  constructor(message, statusCode, response) {
+  constructor(message: string, statusCode: number, response: any) {
     super(message, statusCode, response, true);
     this.name = 'ZendeskServerError';
   }
 }
 
 export class ZendeskNetworkError extends ZendeskError {
-  constructor(message, code) {
+  public readonly code: string | undefined;
+
+  constructor(message: string, code?: string) {
     super(message, null, null, true);
     this.name = 'ZendeskNetworkError';
     this.code = code;
@@ -72,7 +100,7 @@ export class ZendeskNetworkError extends ZendeskError {
 /**
  * Analyze an axios error and return the appropriate custom error
  */
-export function classifyError(error) {
+export function classifyError(error: AxiosError): ZendeskError {
   // Network errors (no response)
   if (!error.response) {
     const networkMessage = error.code === 'ECONNREFUSED' 
@@ -151,7 +179,7 @@ export function classifyError(error) {
 /**
  * Extract error message from Zendesk API response
  */
-function extractErrorMessage(data) {
+function extractErrorMessage(data: any): string | null {
   if (!data) return null;
   
   // Common Zendesk error response formats
@@ -160,7 +188,7 @@ function extractErrorMessage(data) {
   if (data.message) return data.message;
   if (data.description) return data.description;
   if (data.errors && Array.isArray(data.errors)) {
-    return data.errors.map(e => e.message || e).join(', ');
+    return data.errors.map((e: any) => e.message || e).join(', ');
   }
   
   return null;
@@ -169,7 +197,7 @@ function extractErrorMessage(data) {
 /**
  * Extract retry-after value from headers
  */
-function extractRetryAfter(headers) {
+function extractRetryAfter(headers: Record<string, any>): number {
   if (!headers) return 60; // Default to 60 seconds
   
   const retryAfter = headers['retry-after'] || headers['Retry-After'];
@@ -198,7 +226,7 @@ function extractRetryAfter(headers) {
 /**
  * Extract validation details from error response
  */
-function extractValidationDetails(data) {
+function extractValidationDetails(data: any): Record<string, any> | null {
   if (!data) return null;
   
   // Zendesk validation error format
@@ -216,44 +244,31 @@ function extractValidationDetails(data) {
 /**
  * Create a user-friendly error message for MCP responses
  */
-export function createErrorResponse(error) {
-  const baseResponse = {
-    isError: true,
-    errorType: error.name,
-    timestamp: error.timestamp || new Date().toISOString()
-  };
-
+export function createErrorResponse(error: ZendeskError): { content: Array<{ type: 'text'; text: string }> } {
   if (error instanceof ZendeskRateLimitError) {
     return {
-      ...baseResponse,
       content: [{
         type: "text",
         text: `⏱️ Rate Limit: ${error.message}\n\nPlease wait ${error.retryAfter} seconds before trying again.`
-      }],
-      retryAfter: error.retryAfter,
-      isRetryable: true
+      }]
     };
   }
 
   if (error instanceof ZendeskAuthError) {
     return {
-      ...baseResponse,
       content: [{
         type: "text",
         text: `🔐 Authentication Error: ${error.message}\n\nPlease verify your Zendesk credentials in the environment variables.`
-      }],
-      isRetryable: false
+      }]
     };
   }
 
   if (error instanceof ZendeskNotFoundError) {
     return {
-      ...baseResponse,
       content: [{
         type: "text",
         text: `🔍 Not Found: ${error.message}`
-      }],
-      isRetryable: false
+      }]
     };
   }
 
@@ -263,42 +278,33 @@ export function createErrorResponse(error) {
       text += '\n\nDetails:\n' + JSON.stringify(error.validationDetails, null, 2);
     }
     return {
-      ...baseResponse,
-      content: [{ type: "text", text }],
-      isRetryable: false,
-      validationDetails: error.validationDetails
+      content: [{ type: "text", text }]
     };
   }
 
   if (error instanceof ZendeskServerError) {
     return {
-      ...baseResponse,
       content: [{
         type: "text",
         text: `⚠️ Server Error: ${error.message}\n\nThis is a temporary issue. The request will be retried automatically.`
-      }],
-      isRetryable: true
+      }]
     };
   }
 
   if (error instanceof ZendeskNetworkError) {
     return {
-      ...baseResponse,
       content: [{
         type: "text",
         text: `🌐 Network Error: ${error.message}\n\nPlease check your internet connection and try again.`
-      }],
-      isRetryable: true
+      }]
     };
   }
 
   // Default error response
   return {
-    ...baseResponse,
     content: [{
       type: "text",
       text: `Error: ${error.message || 'An unexpected error occurred'}`
-    }],
-    isRetryable: error.isRetryable || false
+    }]
   };
 }
