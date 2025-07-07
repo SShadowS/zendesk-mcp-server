@@ -42,7 +42,7 @@ export const ticketsTools: McpTool[] = [
     description: "Get a specific ticket by ID with optional comments",
     schema: {
       id: z.coerce.number().describe("Ticket ID"),
-      include_comments: z.boolean().optional().describe("Include ticket comments in response (default: false)")
+      include_comments: z.coerce.boolean().optional().describe("Include ticket comments in response (default: false)")
     },
     handler: async ({ id, include_comments = false }: {
       id: number;
