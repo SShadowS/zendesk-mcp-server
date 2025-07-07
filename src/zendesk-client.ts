@@ -2,6 +2,7 @@ import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { classifyError, ZendeskAuthError } from './utils/errors.js';
 import { withRetry, retryProfiles } from './utils/retry.js';
 import { RetryConfig } from './types/config.js';
+import { logger } from './utils/logger.js';
 import {
   ZendeskResponse,
   ZendeskTicket,
@@ -125,12 +126,10 @@ class ZendeskClient {
           const axiosResponse: AxiosResponse<T> = await axios(requestConfig);
           
           // Log success in debug mode
-          if (this.debug) {
-            console.log(`[Zendesk API] Success: ${method} ${endpoint}`, {
-              status: axiosResponse.status,
-              hasData: !!axiosResponse.data
-            });
-          }
+          logger.debug(`[Zendesk API] Success: ${method} ${endpoint}`, {
+            status: axiosResponse.status,
+            hasData: !!axiosResponse.data
+          });
           
           return axiosResponse.data;
         } catch (error: any) {
@@ -142,13 +141,11 @@ class ZendeskClient {
       return response;
     } catch (error: any) {
       // Log error details in debug mode
-      if (this.debug) {
-        console.error(`[Zendesk API] Failed: ${method} ${endpoint}`, {
-          errorType: error.name,
-          statusCode: error.statusCode,
-          message: error.message
-        });
-      }
+      logger.debug(`[Zendesk API] Failed: ${method} ${endpoint}`, {
+        errorType: error.name,
+        statusCode: error.statusCode,
+        message: error.message
+      });
       
       // Re-throw the classified error
       throw error;
@@ -437,13 +434,13 @@ class ZendeskClient {
         );
       }
 
-      console.log(`Testing connection to ${subdomain}.zendesk.com...`);
+      logger.info(`Testing connection to ${subdomain}.zendesk.com...`);
       
       // Test connection by fetching current user info (no retry for test)
       const response = await this.request<{ user: ZendeskUser }>('GET', '/users/me.json', null, null, 'none');
       
       if (response && response.user) {
-        console.log(`✓ Successfully connected to Zendesk as ${response.user.name} (${response.user.email})`);
+        logger.info(`✓ Successfully connected to Zendesk as ${response.user.name} (${response.user.email})`);
         return { success: true, user: response.user };
       } else {
         throw new Error('Unexpected response from Zendesk API');

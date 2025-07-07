@@ -3,6 +3,7 @@ import { zendeskClient } from '../zendesk-client.js';
 import { createErrorResponse } from '../utils/errors.js';
 import { anthropicClient } from '../anthropic-client.js';
 import { McpTool, McpToolResponse } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 export const ticketsTools: McpTool[] = [
   {
@@ -20,9 +21,11 @@ export const ticketsTools: McpTool[] = [
       sort_by?: string;
       sort_order?: "asc" | "desc";
     }): Promise<McpToolResponse> => {
+      logger.debug('Tool called: list_tickets', { page, per_page, sort_by, sort_order });
       try {
         const params = { page, per_page, sort_by, sort_order };
         const result = await zendeskClient.listTickets(params);
+        logger.debug('list_tickets successful', { ticketCount: result.tickets?.length });
         return {
           content: [{ 
             type: "text", 
@@ -45,6 +48,7 @@ export const ticketsTools: McpTool[] = [
       id: number;
       include_comments?: boolean;
     }): Promise<McpToolResponse> => {
+      logger.debug('Tool called: get_ticket', { id, include_comments });
       try {
         const result = await zendeskClient.getTicket(id, include_comments);
         return {
