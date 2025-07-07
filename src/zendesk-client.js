@@ -66,8 +66,11 @@ import axios from 'axios';
         return this.request('GET', '/tickets.json', null, params);
       }
 
-      async getTicket(id) {
-        return this.request('GET', `/tickets/${id}.json`);
+      async getTicket(id, includeComments = false) {
+        const endpoint = includeComments ? 
+          `/tickets/${id}.json?include=comments` : 
+          `/tickets/${id}.json`;
+        return this.request('GET', endpoint);
       }
 
       async createTicket(data) {
@@ -80,6 +83,59 @@ import axios from 'axios';
 
       async deleteTicket(id) {
         return this.request('DELETE', `/tickets/${id}.json`);
+      }
+
+      async getTicketComments(id, params) {
+        return this.request('GET', `/tickets/${id}/comments.json`, null, params);
+      }
+
+      async addTicketComment(id, data) {
+        return this.request('PUT', `/tickets/${id}.json`, { ticket: { comment: data } });
+      }
+
+      async getTicketAttachments(id) {
+        const comments = await this.getTicketComments(id);
+        const attachments = [];
+        
+        if (comments.comments) {
+          comments.comments.forEach(comment => {
+            if (comment.attachments && comment.attachments.length > 0) {
+              comment.attachments.forEach(attachment => {
+                attachments.push({
+                  ...attachment,
+                  comment_id: comment.id,
+                  comment_author: comment.author_id
+                });
+              });
+            }
+          });
+        }
+        
+        return { attachments };
+      }
+
+      async downloadAttachment(url) {
+        try {
+          const response = await axios({
+            method: 'GET',
+            url,
+            headers: {
+              'Authorization': this.getAuthHeader()
+            },
+            responseType: 'arraybuffer'
+          });
+          
+          return {
+            data: response.data,
+            contentType: response.headers['content-type'] || 'application/octet-stream',
+            size: response.data.length
+          };
+        } catch (error) {
+          if (error.response) {
+            throw new Error(`Failed to download attachment: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+          }
+          throw error;
+        }
       }
 
       // Users
