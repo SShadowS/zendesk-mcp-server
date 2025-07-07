@@ -67,10 +67,26 @@ const allTools = [
 logger.info(`Registering ${allTools.length} tools with MCP server`);
 allTools.forEach((tool: any) => {
   logger.debug(`Registering tool: ${tool.name}`);
+  
+  // Wrap handler to catch and log errors
+  const wrappedHandler = async (params: any) => {
+    try {
+      logger.debug(`Tool ${tool.name} called with params:`, params);
+      const result = await tool.handler(params);
+      logger.debug(`Tool ${tool.name} completed successfully`);
+      return result;
+    } catch (error: any) {
+      logger.error(`Tool ${tool.name} failed:`, error);
+      // Re-throw to let MCP handle it
+      throw error;
+    }
+  };
+  
   server.tool(
     tool.name,
-    tool.handler,
-    tool.schema
+    tool.description,
+    tool.schema,
+    wrappedHandler
   );
 });
 logger.debug('All tools registered successfully');
