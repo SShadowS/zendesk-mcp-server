@@ -20,10 +20,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error listing triggers: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -43,10 +40,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error getting trigger: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -90,10 +84,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error creating trigger: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -138,10 +129,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error updating trigger: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -161,10 +149,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error deleting trigger: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       }

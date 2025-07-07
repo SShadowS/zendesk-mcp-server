@@ -20,10 +20,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error listing groups: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -43,10 +40,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error getting group: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -72,10 +66,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error creating group: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -102,10 +93,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error updating group: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -125,10 +113,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error deleting group: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       }

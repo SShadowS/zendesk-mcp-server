@@ -19,10 +19,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error getting support info: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       }

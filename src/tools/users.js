@@ -21,10 +21,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error listing users: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -44,10 +41,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error getting user: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -83,10 +77,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error creating user: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -123,10 +114,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error updating user: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       },
@@ -146,10 +134,7 @@ import { z } from 'zod';
               }]
             };
           } catch (error) {
-            return {
-              content: [{ type: "text", text: `Error deleting user: ${error.message}` }],
-              isError: true
-            };
+            return createErrorResponse(error);
           }
         }
       }
