@@ -4,6 +4,7 @@ dotenv.config();
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { zendeskClient } from './zendesk-client.js';
 import { anthropicClient } from './anthropic-client.js';
+import { logger } from './utils/logger.js';
 import { ticketsTools } from './tools/tickets.js';
 import { usersTools } from './tools/users.js';
 import { organizationsTools } from './tools/organizations.js';
@@ -43,6 +44,8 @@ const server = new McpServer({
   version: "1.0.0"
 });
 
+logger.debug('MCP Server instance created', { name: 'Zendesk API', version: '1.0.0' });
+
 // Register all tools
 const allTools = [
   ...ticketsTools,
@@ -61,13 +64,16 @@ const allTools = [
 ];
 
 // Register each tool with the server
+logger.info(`Registering ${allTools.length} tools with MCP server`);
 allTools.forEach((tool: any) => {
+  logger.debug(`Registering tool: ${tool.name}`);
   server.tool(
     tool.name,
     tool.handler,
     tool.schema
   );
 });
+logger.debug('All tools registered successfully');
 
 // Add a resource for Zendesk API documentation
 server.resource(
@@ -105,25 +111,32 @@ server.resource(
 
 // Initialize server and test connections
 async function initializeServer(): Promise<McpServer> {
-  console.log('Initializing Zendesk MCP Server...');
+  logger.info('Initializing Zendesk MCP Server...');
+  logger.debug('Debug logging enabled');
   
   // Test Zendesk connection
+  logger.debug('Testing Zendesk connection...');
   try {
     await zendeskClient.testConnection();
+    logger.info('Zendesk connection test successful');
   } catch (error) {
-    console.error('Warning: Zendesk connection test failed. The server will start but API calls may fail.');
-    console.error('Please verify your environment variables: ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN');
+    logger.error('Warning: Zendesk connection test failed. The server will start but API calls may fail.');
+    logger.error('Please verify your environment variables: ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN');
+    logger.debug('Zendesk connection error:', error);
   }
   
   // Test Anthropic connection
+  logger.debug('Testing Anthropic API connection...');
   try {
     await anthropicClient.testConnection();
+    logger.info('Anthropic API connection test successful');
   } catch (error: any) {
-    console.error('Warning: Anthropic API connection test failed. Image analysis features may not work.');
-    console.error('Please verify your ANTHROPIC_API_KEY environment variable.');
-    console.error(`Error: ${error.message}`);
+    logger.warn('Warning: Anthropic API connection test failed. Image analysis features may not work.');
+    logger.warn('Please verify your ANTHROPIC_API_KEY environment variable.');
+    logger.debug(`Anthropic connection error: ${error.message}`);
   }
   
+  logger.info('Server initialization complete');
   return server;
 }
 

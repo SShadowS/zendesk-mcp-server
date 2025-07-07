@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { logger } from './utils/logger.js';
 
 class AnthropicClient {
   private client: Anthropic | null = null;
@@ -31,7 +32,7 @@ class AnthropicClient {
         messages: [{ role: 'user', content: 'Hi' }]
       });
       
-      console.log('✓ Successfully connected to Anthropic API');
+      logger.info('✓ Successfully connected to Anthropic API');
     } catch (error: any) {
       if (error.status === 401) {
         throw new Error('Invalid Anthropic API key. Please check your ANTHROPIC_API_KEY environment variable.');
