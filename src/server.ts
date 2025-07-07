@@ -52,7 +52,7 @@ const server = new McpServer({
   version: version
 });
 
-logger.debug('MCP Server instance created', { name: 'Zendesk API', version });
+// logger.debug('MCP Server instance created', { name: 'Zendesk API', version });
 
 // Register all tools
 const allTools = [
@@ -72,16 +72,19 @@ const allTools = [
 ];
 
 // Register each tool with the server
-logger.info(`Registering ${allTools.length} tools with MCP server`);
+// logger.info(`Registering ${allTools.length} tools with MCP server`);
 allTools.forEach((tool: any) => {
-  logger.debug(`Registering tool: ${tool.name}`);
+  // logger.debug(`Registering tool: ${tool.name}`);
   
   // Wrap handler to catch and log errors
   const wrappedHandler = async (params: any) => {
     try {
-      logger.debug(`Tool ${tool.name} called with params:`, params);
+      // Only log in debug mode
+      if (logger.isDebugEnabled()) {
+        logger.debug(`Tool ${tool.name} called with params:`, params);
+      }
       const result = await tool.handler(params);
-      logger.debug(`Tool ${tool.name} completed successfully`);
+      // logger.debug(`Tool ${tool.name} completed successfully`);
       return result;
     } catch (error: any) {
       logger.error(`Tool ${tool.name} failed:`, error);
@@ -97,7 +100,7 @@ allTools.forEach((tool: any) => {
     wrappedHandler
   );
 });
-logger.debug('All tools registered successfully');
+// logger.debug('All tools registered successfully');
 
 // Add a resource for Zendesk API documentation
 server.resource(
@@ -135,32 +138,46 @@ server.resource(
 
 // Initialize server and test connections
 async function initializeServer(): Promise<McpServer> {
-  logger.info('Initializing Zendesk MCP Server...');
-  logger.debug('Debug logging enabled');
+  // Only show initialization message in debug mode
+  if (logger.isDebugEnabled()) {
+    logger.debug('Initializing Zendesk MCP Server...');
+    logger.debug('Debug logging enabled');
+  }
   
   // Test Zendesk connection
-  logger.debug('Testing Zendesk connection...');
   try {
     await zendeskClient.testConnection();
-    logger.info('Zendesk connection test successful');
+    // Only log success in debug mode
+    if (logger.isDebugEnabled()) {
+      logger.debug('Zendesk connection test successful');
+    }
   } catch (error) {
     logger.error('Warning: Zendesk connection test failed. The server will start but API calls may fail.');
     logger.error('Please verify your environment variables: ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN');
-    logger.debug('Zendesk connection error:', error);
+    if (logger.isDebugEnabled()) {
+      logger.debug('Zendesk connection error:', error);
+    }
   }
   
   // Test Anthropic connection
-  logger.debug('Testing Anthropic API connection...');
   try {
     await anthropicClient.testConnection();
-    logger.info('Anthropic API connection test successful');
+    // Only log success in debug mode
+    if (logger.isDebugEnabled()) {
+      logger.debug('Anthropic API connection test successful');
+    }
   } catch (error: any) {
-    logger.warn('Warning: Anthropic API connection test failed. Image analysis features may not work.');
-    logger.warn('Please verify your ANTHROPIC_API_KEY environment variable.');
-    logger.debug(`Anthropic connection error: ${error.message}`);
+    // Only warn about Anthropic failures in debug mode since it's optional
+    if (logger.isDebugEnabled()) {
+      logger.debug(`Anthropic API connection test failed: ${error.message}`);
+      logger.debug('Image analysis features may not work.');
+    }
   }
   
-  logger.info(`Server initialization complete (v${version})`);
+  // Only show completion message in debug mode
+  if (logger.isDebugEnabled()) {
+    logger.debug(`Server initialization complete (v${version})`);
+  }
   return server;
 }
 
