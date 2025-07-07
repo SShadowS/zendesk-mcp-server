@@ -3,6 +3,7 @@ dotenv.config();
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { zendeskClient } from './zendesk-client.js';
+import { anthropicClient } from './anthropic-client.js';
 import { ticketsTools } from './tools/tickets.js';
 import { usersTools } from './tools/users.js';
 import { organizationsTools } from './tools/organizations.js';
@@ -102,15 +103,25 @@ server.resource(
   }
 );
 
-// Initialize server and test connection
+// Initialize server and test connections
 async function initializeServer(): Promise<McpServer> {
   console.log('Initializing Zendesk MCP Server...');
   
+  // Test Zendesk connection
   try {
     await zendeskClient.testConnection();
   } catch (error) {
     console.error('Warning: Zendesk connection test failed. The server will start but API calls may fail.');
     console.error('Please verify your environment variables: ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN');
+  }
+  
+  // Test Anthropic connection
+  try {
+    await anthropicClient.testConnection();
+  } catch (error: any) {
+    console.error('Warning: Anthropic API connection test failed. Image analysis features may not work.');
+    console.error('Please verify your ANTHROPIC_API_KEY environment variable.');
+    console.error(`Error: ${error.message}`);
   }
   
   return server;
