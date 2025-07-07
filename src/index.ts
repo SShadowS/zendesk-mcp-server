@@ -45,7 +45,7 @@ async function main(): Promise<void> {
     logger.debug('Connecting server to transport...');
     await server.connect(transport);
     
-    logger.info('MCP server started successfully, waiting for connections...');
+    logger.info(`MCP server v${version} started successfully, waiting for connections...`);
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
