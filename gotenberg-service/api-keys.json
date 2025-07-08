@@ -1,0 +1,20 @@
+{
+  "your-secret-api-key-here-1234567890abcdef": {
+    "id": "key_001",
+    "name": "Zendesk MCP Production",
+    "created": "2024-01-15T10:00:00Z",
+    "disabled": false
+  },
+  "another-api-key-for-dev-environment-xyz": {
+    "id": "key_002",
+    "name": "Zendesk MCP Development",
+    "created": "2024-01-15T10:00:00Z",
+    "disabled": false
+  },
+  "backup-key-for-emergency-use-only-abc123": {
+    "id": "key_003",
+    "name": "Emergency Backup Key",
+    "created": "2024-01-15T10:00:00Z",
+    "disabled": true
+  }
+}

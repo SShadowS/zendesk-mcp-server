@@ -11,11 +11,48 @@ This directory contains the Docker-based document conversion service used to con
 ## Contents
 
 - `ConvertPLAN.md` - Complete implementation plan and instructions
-- Additional files will be added when implementing the service
+- `docker-compose.yml` - Development Docker Compose configuration
+- `docker-compose.prod.yml` - Production Docker Compose with Nginx
+- `api-gateway/` - Node.js API gateway for authentication
+- `setup.sh` - Automated setup script
+- `test-conversion.sh` - Test script for the service
 
 ## Quick Start
 
-See `ConvertPLAN.md` for detailed setup instructions.
+### 1. Generate API Keys
+```bash
+./setup.sh generate-keys
+```
+
+### 2. Update API Keys
+Edit `api-keys.json` with your generated keys.
+
+### 3. Start the Service
+```bash
+./setup.sh
+```
+
+### 4. Test the Service
+```bash
+./test-conversion.sh
+```
+
+### 5. Configure Zendesk MCP Server
+Add to your `.env` file:
+```env
+GOTENBERG_API_URL=http://localhost:3000
+GOTENBERG_API_KEY=your-secret-api-key-here
+```
+
+## Production Deployment
+
+For production with HTTPS:
+```bash
+# Use the production compose file
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+See `ConvertPLAN.md` for detailed SSL setup instructions.
 
 ## Why Separate?
 

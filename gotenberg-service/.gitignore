@@ -1,0 +1,27 @@
+# Node modules
+api-gateway/node_modules/
+api-gateway/package-lock.json
+
+# Test files
+test-document.*
+test-output.pdf
+*.pdf
+*.docx
+*.doc
+
+# SSL certificates (should be managed separately)
+ssl-dhparams.pem
+*.pem
+*.crt
+*.key
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

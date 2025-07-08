@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # API Gateway - Node.js middleware for authentication
+  api-gateway:
+    build: ./api-gateway
+    container_name: gotenberg-gateway
+    ports:
+      - "3000:3000"  # Expose on port 3000, use reverse proxy for HTTPS
+    environment:
+      - NODE_ENV=production
+      - GOTENBERG_URL=http://gotenberg:3000
+      - PORT=3000
+      - MAX_FILE_SIZE=104857600  # 100MB
+      - REQUEST_TIMEOUT=120000    # 2 minutes
+    volumes:
+      - ./api-keys.json:/app/api-keys.json:ro
+    depends_on:
+      - gotenberg
+    networks:
+      - gotenberg-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Gotenberg service - Internal only
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: gotenberg-service
+    command:
+      - "gotenberg"
+      - "--api-timeout=120s"
+      - "--api-root-path=/gotenberg"
+      - "--chromium-max-queue-size=100"
+      - "--libreoffice-max-queue-size=100"
+      - "--webhook-max-retry=3"
+      - "--webhook-retry-min-wait=1s"
+      - "--webhook-retry-max-wait=30s"
+    networks:
+      - gotenberg-net
+    restart: unless-stopped
+    # No ports exposed - only accessible via api-gateway
+
+networks:
+  gotenberg-net:
+    driver: bridge
+    internal: false  # Set to true in production for better isolation
