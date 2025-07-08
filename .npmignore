@@ -32,3 +32,11 @@ __tests__/
 # Package files
 *.tgz
 package-lock.json
+
+# Docker/conversion service (not part of npm package)
+gotenberg-service/
+
+# Test scripts
+test-*.js
+test-*.ts
+TEST_GUIDE.md
