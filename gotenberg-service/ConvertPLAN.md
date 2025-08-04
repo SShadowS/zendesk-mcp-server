@@ -793,22 +793,30 @@ NODE_ENV=development docker-compose up api-gateway
 
 ## 8. Security Considerations
 
-1. **API Key Rotation**
+1. **Data Privacy - In-Memory Processing**
+   - All file processing happens in memory only
+   - Gotenberg uses tmpfs mounted at `/tmp` and `/gotenberg/tmp`
+   - No sensitive data is ever written to disk
+   - API gateway uses pure streaming (no body parsing or buffering)
+   - Data is automatically cleared when containers restart
+
+2. **API Key Rotation**
    - Rotate API keys every 90 days
    - Keep old keys active for 7 days during transition
    - Log API key usage for audit trail
 
-2. **Network Security**
+3. **Network Security**
    - Use internal Docker networks
    - Never expose Gotenberg directly
    - Always use HTTPS for external access
 
-3. **Resource Limits**
+4. **Resource Limits**
    - Set memory limits for containers
    - Implement request timeouts
-   - Monitor disk usage for temporary files
+   - Monitor tmpfs memory usage
+   - Size tmpfs appropriately for document sizes
 
-4. **Updates**
+5. **Updates**
    - Regularly update Gotenberg image
    - Keep Node.js dependencies updated
    - Monitor security advisories

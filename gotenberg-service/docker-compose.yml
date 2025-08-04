@@ -39,6 +39,13 @@ services:
       - "--webhook-max-retry=3"
       - "--webhook-retry-min-wait=1s"
       - "--webhook-retry-max-wait=30s"
+    environment:
+      - LOG_LEVEL=info
+    tmpfs:
+      # Use memory-based tmpfs for any temporary files
+      # This ensures no data is written to disk
+      - /tmp:size=1G
+      - /gotenberg/tmp:size=1G
     networks:
       - gotenberg-net
     restart: unless-stopped
