@@ -23,12 +23,73 @@ fi
 if [ "$1" == "generate-keys" ]; then
     echo ""
     echo "🔑 Generating secure API keys..."
-    echo ""
-    echo "Production Key: $(openssl rand -hex 32)"
-    echo "Development Key: $(openssl rand -hex 32)"
-    echo "Backup Key: $(openssl rand -hex 32)"
-    echo ""
-    echo "⚠️  Please update api-keys.json with these keys!"
+    
+    # Generate the keys
+    PROD_KEY=$(openssl rand -hex 32)
+    DEV_KEY=$(openssl rand -hex 32)
+    BACKUP_KEY=$(openssl rand -hex 32)
+    
+    # Check if -u or --update flag is provided
+    if [ "$2" == "-u" ] || [ "$2" == "--update" ]; then
+        echo ""
+        echo "📝 Updating api-keys.json..."
+        
+        # Create backup
+        if [ -f "api-keys.json" ]; then
+            cp api-keys.json api-keys.json.backup
+            echo "📋 Created backup: api-keys.json.backup"
+        fi
+        
+        # Update the JSON file
+        cat > api-keys.json << EOF
+{
+  "production": {
+    "key": "${PROD_KEY}",
+    "name": "Production Key",
+    "description": "Main production API key",
+    "created": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+    "lastUsed": null,
+    "active": true
+  },
+  "development": {
+    "key": "${DEV_KEY}",
+    "name": "Development Key", 
+    "description": "Development and testing API key",
+    "created": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+    "lastUsed": null,
+    "active": true
+  },
+  "backup": {
+    "key": "${BACKUP_KEY}",
+    "name": "Backup Key",
+    "description": "Emergency backup API key",
+    "created": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+    "lastUsed": null,
+    "active": true
+  }
+}
+EOF
+        
+        echo "✅ Successfully updated api-keys.json"
+        echo ""
+        echo "🔑 Your new API keys:"
+        echo "  Production: ${PROD_KEY}"
+        echo "  Development: ${DEV_KEY}"
+        echo "  Backup: ${BACKUP_KEY}"
+        echo ""
+        echo "⚠️  Store these keys securely!"
+        
+    else
+        echo ""
+        echo "Production Key: ${PROD_KEY}"
+        echo "Development Key: ${DEV_KEY}"
+        echo "Backup Key: ${BACKUP_KEY}"
+        echo ""
+        echo "⚠️  Please update api-keys.json with these keys!"
+        echo ""
+        echo "💡 Tip: Use './setup.sh generate-keys -u' to update the JSON file automatically"
+    fi
+    
     exit 0
 fi
 

@@ -184,7 +184,7 @@ export const ticketsTools: McpTool[] = [
   },
   {
     name: "get_ticket_comments",
-    description: "Get comments for a specific ticket",
+    description: "Get comments for a specific ticket. IMPORTANT: To avoid token limit errors (max 25000 tokens), always use pagination. Start with per_page=1 to test response size. If successful, gradually increase (2, 3, 5) until you find the optimal batch size. For tickets with many comments, iterate through pages. Algorithm: 1) Try per_page=1 first, 2) If response tokens < 5000, try per_page=3, 3) If still under limit, try per_page=5, 4) Use the largest working per_page value to iterate through all pages.",
     schema: {
       id: z.coerce.number().describe("Ticket ID"),
       page: z.coerce.number().optional().describe("Page number for pagination"),

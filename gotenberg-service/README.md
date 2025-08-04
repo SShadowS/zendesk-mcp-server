@@ -19,25 +19,27 @@ This directory contains the Docker-based document conversion service used to con
 
 ## Quick Start
 
-### 1. Generate API Keys
+### 1. Generate and Update API Keys
 ```bash
+# Generate keys and automatically update api-keys.json
+./setup.sh generate-keys -u
+
+# Or generate keys and update manually
 ./setup.sh generate-keys
+# Then edit api-keys.json with the generated keys
 ```
 
-### 2. Update API Keys
-Edit `api-keys.json` with your generated keys.
-
-### 3. Start the Service
+### 2. Start the Service
 ```bash
 ./setup.sh
 ```
 
-### 4. Test the Service
+### 3. Test the Service
 ```bash
 ./test-conversion.sh
 ```
 
-### 5. Configure Zendesk MCP Server
+### 4. Configure Zendesk MCP Server
 Add to your `.env` file:
 ```env
 GOTENBERG_API_URL=http://localhost:3000
