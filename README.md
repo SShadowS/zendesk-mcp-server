@@ -177,6 +177,10 @@ ANTHROPIC_API_KEY=sk-ant-...       # For vision & analysis features
 | `get_ticket` | Get ticket details | `get_ticket(id: 123, include_comments: true)` |
 | `create_ticket` | Create new ticket | `create_ticket(subject: "Help needed")` |
 | `update_ticket` | Update ticket | `update_ticket(id: 123, status: "solved")` |
+| `delete_ticket` | Delete a ticket | `delete_ticket(id: 123)` |
+| `get_ticket_comments` | Get comments for a ticket (use pagination) | `get_ticket_comments(id: 123, per_page: 3)` |
+| `add_ticket_comment` | Add comment to ticket | `add_ticket_comment(id: 123, body: "Update", type: "public")` |
+| `get_ticket_attachments` | Get all attachments from ticket | `get_ticket_attachments(id: 123)` |
 | `analyze_ticket_images` | AI analysis of attachments | `analyze_ticket_images(id: 123)` |
 
 </details>
@@ -229,6 +233,7 @@ ANTHROPIC_API_KEY=sk-ant-...       # For vision & analysis features
 | **Help Center** | `list_articles`, `get_article`, `create_article`, `update_article`, `delete_article` |
 | **Talk** | `get_talk_stats` - Get phone support statistics |
 | **Chat** | `list_chats` - List chat conversations |
+| **Support** | `support_info` - Get Zendesk Support configuration info |
 
 </details>
 
