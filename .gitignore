@@ -85,3 +85,23 @@ out/
 
 # Project specific
 PLAN.md
+MIME.md
+OAuthRefactor.md
+
+# Test files and outputs
+test.docx
+test.pdf
+test.txt
+converted.pdf
+converted2.pdf
+test_converted.pdf
+test-converted.pdf
+*.test.pdf
+*.test.docx
+
+# Test scripts (project-specific testing)
+download-docx.js
+test-converter.js
+test-document-integration.js
+test-document.js
+test-converter-api.sh

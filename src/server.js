@@ -16,6 +16,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
     import { supportTools } from './tools/support.js';
     import { talkTools } from './tools/talk.js';
     import { chatTools } from './tools/chat.js';
+    import { documentAnalysisTools } from './tools/document-analysis.js';
 
     // Create an MCP server for Zendesk API
     const server = new McpServer({
@@ -38,7 +39,8 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
       ...helpCenterTools,
       ...supportTools,
       ...talkTools,
-      ...chatTools
+      ...chatTools,
+      ...documentAnalysisTools
     ];
 
     // Register each tool with the server
@@ -102,13 +104,13 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 
     // Initialize server and test connection
     async function initializeServer() {
-      console.log('Initializing Zendesk MCP Server...');
+      // console.log('Initializing Zendesk MCP Server...');
       
       try {
         await zendeskClient.testConnection();
       } catch (error) {
-        console.error('Warning: Zendesk connection test failed. The server will start but API calls may fail.');
-        console.error('Please verify your environment variables: ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN');
+        // console.error('Warning: Zendesk connection test failed. The server will start but API calls may fail.');
+        // console.error('Please verify your environment variables: ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN');
       }
       
       return server;

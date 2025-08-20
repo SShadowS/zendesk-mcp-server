@@ -58,7 +58,7 @@ class ZendeskClient {
       data,
       params,
       // Add timeout to prevent hanging requests
-      timeout: 30000
+      timeout: 60000 // Increased timeout for document downloads
     };
 
     // Log request details in debug mode
@@ -397,19 +397,19 @@ class ZendeskClient {
         );
       }
 
-      console.log(`Testing connection to ${subdomain}.zendesk.com...`);
+      // console.log(`Testing connection to ${subdomain}.zendesk.com...`);
       
       // Test connection by fetching current user info (no retry for test)
       const response = await this.request('GET', '/users/me.json', null, null, 'none');
       
       if (response && response.user) {
-        console.log(`✓ Successfully connected to Zendesk as ${response.user.name} (${response.user.email})`);
+        // console.log(`✓ Successfully connected to Zendesk as ${response.user.name} (${response.user.email})`);
         return { success: true, user: response.user };
       } else {
         throw new Error('Unexpected response from Zendesk API');
       }
     } catch (error) {
-      console.error(`✗ Failed to connect to Zendesk: ${error.message}`);
+      // console.error(`✗ Failed to connect to Zendesk: ${error.message}`);
       throw error;
     }
   }

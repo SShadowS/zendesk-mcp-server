@@ -6,7 +6,7 @@
     // Load environment variables
     dotenv.config();
 
-    console.log('Starting Zendesk API MCP server...');
+    // console.log('Starting Zendesk API MCP server...');
 
     // Initialize server and test connection
     const server = await initializeServer();

@@ -1,10 +1,14 @@
-import { z } from 'zod';
+import dotenv from 'dotenv';
+    dotenv.config();
+    
+    import { z } from 'zod';
     import { zendeskClient } from '../zendesk-client.js';
     import { createErrorResponse } from '../utils/errors.js';
     import Anthropic from '@anthropic-ai/sdk';
 
     const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      timeout: 60000 // 60 second timeout for API calls
     });
 
     export const ticketsTools = [
@@ -227,12 +231,13 @@ import { z } from 'zod';
       },
       {
         name: "analyze_ticket_images",
-        description: "Download and analyze images from a ticket using AI vision",
+        description: "Download and analyze images from a ticket using AI vision with comprehensive analysis",
         schema: {
           id: z.number().describe("Ticket ID"),
-          analysis_prompt: z.string().optional().describe("Custom analysis prompt (default: general image description)")
+          analysis_prompt: z.string().optional().describe("Custom analysis prompt (default: general image description)"),
+          max_tokens: z.number().optional().describe("Maximum tokens for response (default: 4096, max: 4096)")
         },
-        handler: async ({ id, analysis_prompt = "Describe this image in detail, including any text, UI elements, error messages, or relevant information visible." }) => {
+        handler: async ({ id, analysis_prompt = "Describe this image in detail, including any text, UI elements, error messages, or relevant information visible.", max_tokens = 4096 }) => {
           try {
             const attachmentsResult = await zendeskClient.getTicketAttachments(id);
             const imageAttachments = attachmentsResult.attachments.filter(att => 
@@ -295,7 +300,7 @@ import { z } from 'zod';
                   const base64Data = analysis.image_data.split(',')[1];
                   const message = await anthropic.messages.create({
                     model: "claude-sonnet-4-20250514",
-                    max_tokens: 1000,
+                    max_tokens: Math.min(max_tokens, 4096),
                     messages: [
                       {
                         role: "user",
