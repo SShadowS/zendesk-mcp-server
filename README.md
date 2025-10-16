@@ -17,9 +17,11 @@
 
 ## 🌟 Overview
 
-Zendesk MCP Server provides a comprehensive interface to the Zendesk API through the Model Context Protocol, enabling AI assistants to interact with your support system. With built-in AI-powered ticket analysis and full API coverage, it's the perfect tool for automating and enhancing your customer support workflows.
+Zendesk MCP Server provides a comprehensive interface to the Zendesk API through the Model Context Protocol, enabling AI assistants to interact with your support system. With built-in AI-powered ticket analysis, OAuth 2.1 security, and full API coverage, it's the perfect tool for automating and enhancing your customer support workflows.
 
-> 💡 **Based on** [mattcoatsworth/zendesk-mcp-server](https://github.com/mattcoatsworth/zendesk-mcp-server) with significant enhancements including AI-powered features, improved error handling, and comprehensive security improvements.
+> 💡 **Based on** [mattcoatsworth/zendesk-mcp-server](https://github.com/mattcoatsworth/zendesk-mcp-server) with significant enhancements including AI-powered features, OAuth 2.1 authentication, improved error handling, and comprehensive security improvements.
+
+> 🔒 **Security First**: Now uses OAuth 2.1 with PKCE for secure authentication. API tokens are no longer supported for enhanced security.
 
 ## ✨ Features
 
@@ -43,6 +45,7 @@ Zendesk MCP Server provides a comprehensive interface to the Zendesk API through
 - 💬 Smart comment generation
 - 🔍 Advanced search functionality
 - 📎 Attachment handling
+- 🔒 **OAuth 2.1 Security** with PKCE
 
 </td>
 </tr>
@@ -50,32 +53,54 @@ Zendesk MCP Server provides a comprehensive interface to the Zendesk API through
 
 ## 🚀 Quick Start
 
-### 1️⃣ Install
+### 1️⃣ Create OAuth App in Zendesk
+1. Log in to **Zendesk Admin Center**
+2. Navigate to **Apps and integrations** → **APIs** → **Zendesk API** → **OAuth Clients**
+3. Click **Add OAuth client**
+4. Configure:
+   - **Client Name**: `AI Support MCP`
+   - **Redirect URLs**: `http://localhost:3030/zendesk/oauth/callback`
+   - **Scopes**: Select `read` and `write`
+5. Save and copy the **Client ID** and **Client Secret**
+
+### 2️⃣ Install & Configure
 ```bash
+# Install the server
 npm install -g @sshadows/zendesk-mcp-server
+
+# Or run from source
+git clone https://github.com/SShadowS/zendesk-mcp-server.git
+cd zendesk-mcp-server
+npm install
 ```
 
-### 2️⃣ Configure MCP
-Add to your MCP settings (`~/.config/mcp/settings.json`):
-
-```json
-{
-  "servers": {
-    "zendesk": {
-      "command": "npx",
-      "args": ["@sshadows/zendesk-mcp-server"],
-      "env": {
-        "ZENDESK_SUBDOMAIN": "your-subdomain",
-        "ZENDESK_EMAIL": "your-email@example.com",
-        "ZENDESK_API_TOKEN": "your-api-token",
-        "ANTHROPIC_API_KEY": "your-anthropic-api-key"
-      }
-    }
-  }
-}
+Create `.env` file:
+```bash
+ZENDESK_SUBDOMAIN=your-subdomain
+ZENDESK_OAUTH_CLIENT_ID=your_oauth_client_id
+ZENDESK_OAUTH_CLIENT_SECRET=your_oauth_client_secret
+ZENDESK_OAUTH_REDIRECT_URI=http://localhost:3030/zendesk/oauth/callback
+ANTHROPIC_API_KEY=your-anthropic-api-key  # For AI features
 ```
 
-### 3️⃣ Start Using
+### 3️⃣ Start Server & Authorize
+```bash
+# Start the HTTP server
+npm start
+
+# In your browser, visit:
+# http://localhost:3030/oauth/authorize
+
+# Complete OAuth authorization
+# Copy the access token from the response
+```
+
+### 4️⃣ Use with MCP Client
+Configure your MCP client to use the server with Bearer token:
+```http
+Authorization: Bearer mcp_your_access_token_here
+```
+
 Your AI assistant can now interact with Zendesk! Try:
 - "List all open tickets"
 - "Analyze images in ticket #123"
@@ -87,10 +112,10 @@ Your AI assistant can now interact with Zendesk! Try:
 
 | Requirement | Version | Required |
 |------------|---------|----------|
-| Node.js | ≥ 14.0.0 | ✅ |
+| Node.js | ≥ 18.0.0 | ✅ |
 | Zendesk Account | Any | ✅ |
-| Zendesk API Token | - | ✅ |
-| Anthropic API Key | - | ✅ |
+| Zendesk OAuth App | - | ✅ |
+| Anthropic API Key | - | ✅ (for AI features) |
 
 ### Installation Methods
 
@@ -133,34 +158,94 @@ docker run -e ZENDESK_SUBDOMAIN=... sshadows/zendesk-mcp-server
 Create a `.env` file in your project root:
 
 ```bash
-# Zendesk Configuration
-ZENDESK_SUBDOMAIN=mycompany        # Your Zendesk subdomain
-ZENDESK_EMAIL=admin@mycompany.com  # Admin email
-ZENDESK_API_TOKEN=abc123...        # Generate in Admin → API
+# Zendesk OAuth Configuration
+ZENDESK_SUBDOMAIN=mycompany                           # Your Zendesk subdomain
+ZENDESK_OAUTH_CLIENT_ID=your_oauth_client_id          # From OAuth app
+ZENDESK_OAUTH_CLIENT_SECRET=your_oauth_client_secret  # From OAuth app
+ZENDESK_OAUTH_REDIRECT_URI=http://localhost:3030/zendesk/oauth/callback
+
+# Optional: Server Configuration
+PORT=3030                                             # HTTP server port (default: 3030)
+SERVER_BASE_URL=http://localhost:3030                 # Base URL for OAuth (production: https://your-domain.com)
 
 # AI Features
-ANTHROPIC_API_KEY=sk-ant-...       # For vision & analysis features
+ANTHROPIC_API_KEY=sk-ant-...                          # For vision & analysis features
+
+# Optional: Debugging
+ZENDESK_DEBUG=false                                   # Enable debug logging
 ```
 
-### 🔑 Getting Your API Keys
+### 🔑 Setting Up Authentication
 
 <details>
-<summary><b>Zendesk API Token</b></summary>
+<summary><b>Create Zendesk OAuth App</b></summary>
 
-1. Log in to Zendesk Admin Center
+1. Log in to **Zendesk Admin Center**
 2. Navigate to **Apps and integrations** → **APIs** → **Zendesk API**
-3. Click **Add API token**
-4. Copy the generated token
+3. Click on **OAuth Clients** tab
+4. Click **Add OAuth client**
+5. Fill in the details:
+   - **Client Name**: AI Support MCP (or your preferred name)
+   - **Description**: MCP Server for AI-powered support automation
+   - **Company**: Your company name
+   - **Logo**: Optional
+   - **Unique Identifier**: Leave auto-generated or customize
+   - **Redirect URLs**: `http://localhost:3030/zendesk/oauth/callback`
+     - For production: `https://your-domain.com/zendesk/oauth/callback`
+   - **Scopes**: Select `read` and `write` (required for full functionality)
+6. Click **Save**
+7. Copy the **Client ID** and **Client Secret** immediately (secret is only shown once!)
+8. Add these to your `.env` file
+
+**Production Notes:**
+- Use HTTPS for production redirect URLs
+- Store Client Secret securely (environment variables, secrets manager)
+- Consider using different OAuth apps for development and production
 
 </details>
 
 <details>
-<summary><b>Anthropic API Key</b></summary>
+<summary><b>Get Anthropic API Key</b></summary>
 
 1. Visit [console.anthropic.com](https://console.anthropic.com)
 2. Navigate to **API Keys**
-3. Create a new key
-4. Copy and save securely
+3. Click **Create Key**
+4. Give it a descriptive name (e.g., "Zendesk MCP Server")
+5. Copy and save securely in your `.env` file
+
+**Note**: Anthropic API key is only required if you use AI-powered features like image analysis.
+
+</details>
+
+<details>
+<summary><b>Complete OAuth Authorization</b></summary>
+
+After configuring your `.env` file:
+
+1. Start the server: `npm start`
+2. Visit `http://localhost:3030/oauth/authorize` in your browser
+3. You'll be redirected to Zendesk to authorize the app
+4. Click **Allow** to grant permissions
+5. You'll be redirected back with an access token in JSON format
+6. Copy the `access_token` value
+7. Token is valid for 24 hours (automatically refreshed by the server)
+
+**Token Format:**
+```json
+{
+  "success": true,
+  "access_token": "mcp_abc123...",
+  "token_type": "Bearer",
+  "expires_in": 86400,
+  "scope": "read write"
+}
+```
+
+**Using the Token:**
+- Include in all requests: `Authorization: Bearer mcp_abc123...`
+- Tokens expire after 24 hours
+- Server automatically refreshes Zendesk tokens (2-hour TTL)
+- Re-authorize if you see 401 errors
 
 </details>
 
@@ -278,28 +363,72 @@ await add_ticket_comment({
 ### Running Locally
 
 ```bash
-# Start the server
+# Start the HTTP server (OAuth mode)
 npm start
 
 # Development mode with auto-reload
 npm run dev
 
-# Test with MCP Inspector
+# Test OAuth flow
+node test-oauth-flow.js
+
+# Test with MCP Inspector (requires OAuth token)
 npm run inspect
 ```
+
+### Server Architecture
+
+The server now runs in **HTTP mode** using Streamable HTTP transport:
+
+- **Entry Point**: `src/index.js` - Starts HTTP server
+- **HTTP Server**: `src/http-server.js` - Express server with OAuth endpoints
+- **OAuth Handler**: `src/auth/oauth-handler.js` - OAuth 2.1 with PKCE
+- **Session Store**: `src/auth/session-store.js` - In-memory sessions (use Redis in production)
+- **MCP Server**: `src/server.js` - MCP server configuration
+- **Zendesk Client**: `src/zendesk-client.js` - OAuth-authenticated API client
+- **Request Context**: `src/request-context.js` - Per-session client management
+- **Tools**: `src/tools/*.js` - MCP tool implementations
 
 ### Project Structure
 
 ```
 zendesk-mcp-server/
 ├── src/
-│   ├── index.js          # Entry point
-│   ├── server.js         # MCP server setup
-│   ├── zendesk-client.js # API client
-│   └── tools/            # Tool implementations
-├── .env.example          # Environment template
-├── package.json          # Dependencies
-└── README.md            # You are here!
+│   ├── index.js              # Entry point (HTTP mode)
+│   ├── http-server.js        # Express server with OAuth
+│   ├── server.js             # MCP server setup
+│   ├── zendesk-client.js     # OAuth API client
+│   ├── request-context.js    # Per-session context
+│   ├── auth/
+│   │   ├── oauth-handler.js  # OAuth 2.1 with PKCE
+│   │   └── session-store.js  # Session management
+│   ├── tools/                # Tool implementations
+│   └── utils/                # Error handling, retry logic
+├── test-oauth-flow.js        # OAuth flow test script
+├── .env.example              # Environment template
+├── package.json              # Dependencies
+└── README.md                # You are here!
+```
+
+### Testing OAuth Flow
+
+```bash
+# 1. Configure .env with OAuth credentials
+cp .env.example .env
+# Edit .env with your OAuth app credentials
+
+# 2. Start server
+npm start
+
+# 3. Run automated tests
+node test-oauth-flow.js
+
+# 4. Manual authorization (in browser)
+open http://localhost:3030/oauth/authorize
+
+# 5. Test MCP endpoint with token
+curl -H "Authorization: Bearer mcp_your_token" \
+     http://localhost:3030/mcp
 ```
 
 ## 🤝 Contributing
@@ -319,23 +448,69 @@ We love contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for 
 <details>
 <summary><b>Common Issues</b></summary>
 
-### Connection Failed
+### OAuth Configuration Error
 ```
-✗ Failed to connect to Zendesk
+OAuth not configured. Please set ZENDESK_OAUTH_CLIENT_ID...
 ```
-**Solution**: Verify your credentials in `.env` file
+**Solution**:
+- Ensure `.env` file exists with all OAuth credentials
+- Verify `ZENDESK_OAUTH_CLIENT_ID` and `ZENDESK_OAUTH_CLIENT_SECRET` are set
+- Check redirect URI matches OAuth app configuration
+
+### 401 Unauthorized
+```
+Error: No valid OAuth access token
+```
+**Solutions**:
+- Complete OAuth authorization flow: visit `http://localhost:3030/oauth/authorize`
+- Check if token expired (24-hour TTL) - re-authorize if needed
+- Ensure Bearer token is included in request: `Authorization: Bearer mcp_xxx`
+- Verify token format (should start with `mcp_`)
+
+### Token Refresh Failed
+```
+Token refresh failed. Please re-authorize.
+```
+**Solutions**:
+- Complete OAuth flow again to get new token
+- Check if OAuth app credentials are still valid in Zendesk
+- Verify network connectivity to Zendesk servers
+- Check Zendesk OAuth app is still active and not revoked
 
 ### API Rate Limits
 ```
 Error: 429 Too Many Requests
 ```
-**Solution**: Implement request throttling or upgrade your Zendesk plan
+**Solution**:
+- Server includes exponential backoff retry logic
+- Consider implementing caching for repeated requests
+- Upgrade Zendesk plan for higher rate limits
+- Check if multiple clients are using same token
 
 ### Missing AI Features
 ```
 Error: ANTHROPIC_API_KEY not set
 ```
-**Solution**: Add your Anthropic API key to the environment
+**Solution**: Add your Anthropic API key to `.env` file (only needed for AI features)
+
+### Session Lost on Server Restart
+```
+Error: Invalid or expired token (after server restart)
+```
+**Solution**:
+- This is expected with in-memory session storage
+- Re-authorize to get new token
+- For production: Implement Redis session store (see `src/auth/session-store.js`)
+
+### PKCE Challenge Failed
+```
+Error: Token exchange failed: invalid_grant
+```
+**Solutions**:
+- Ensure redirect URI matches exactly in OAuth app settings
+- Check for URL encoding issues in redirect URI
+- Verify state parameter hasn't been modified
+- Try creating a new OAuth app if issue persists
 
 </details>
 

@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-    import { zendeskClient } from './zendesk-client.js';
+    import { ZendeskClient } from './zendesk-client.js';
     import { ticketsTools } from './tools/tickets.js';
     import { usersTools } from './tools/users.js';
     import { organizationsTools } from './tools/organizations.js';
@@ -102,17 +102,11 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
       }
     );
 
-    // Initialize server and test connection
+    // Initialize server
+    // Note: Connection testing moved to per-session in HTTP server (requires OAuth tokens)
     async function initializeServer() {
-      // console.log('Initializing Zendesk MCP Server...');
-      
-      try {
-        await zendeskClient.testConnection();
-      } catch (error) {
-        // console.error('Warning: Zendesk connection test failed. The server will start but API calls may fail.');
-        // console.error('Please verify your environment variables: ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, ZENDESK_API_TOKEN');
-      }
-      
+      // OAuth-based authentication - no connection test at startup
+      // Connection will be validated when OAuth flow completes and first API call is made
       return server;
     }
 

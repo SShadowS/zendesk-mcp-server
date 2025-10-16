@@ -6,18 +6,65 @@ class ZendeskClient {
   constructor() {
     // Don't load credentials in constructor - load them lazily
     this.debug = process.env.ZENDESK_DEBUG === 'true';
+
+    // OAuth token support
+    this.accessToken = null;
+    this.tokenExpiry = null;
+  }
+
+  /**
+   * Set OAuth access token for subsequent requests
+   * @param {string} token - OAuth access token
+   * @param {number|null} expiresAt - Token expiration timestamp (ms since epoch), or null if unknown
+   */
+  setAccessToken(token, expiresAt = null) {
+    this.accessToken = token;
+    this.tokenExpiry = expiresAt;
+
+    if (this.debug) {
+      console.log('[ZendeskClient] OAuth token set', {
+        hasToken: !!token,
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : 'unknown'
+      });
+    }
+  }
+
+  /**
+   * Clear OAuth access token
+   */
+  clearAccessToken() {
+    this.accessToken = null;
+    this.tokenExpiry = null;
+
+    if (this.debug) {
+      console.log('[ZendeskClient] OAuth token cleared');
+    }
+  }
+
+  /**
+   * Check if the current OAuth token is expired
+   * @returns {boolean}
+   */
+  isTokenExpired() {
+    if (!this.accessToken) {
+      return true;
+    }
+
+    if (!this.tokenExpiry) {
+      return false; // Unknown expiry, assume valid
+    }
+
+    return Date.now() >= this.tokenExpiry;
   }
 
   getCredentials() {
     if (!this._credentials) {
       this._credentials = {
-        subdomain: process.env.ZENDESK_SUBDOMAIN,
-        email: process.env.ZENDESK_EMAIL,
-        apiToken: process.env.ZENDESK_API_TOKEN
+        subdomain: process.env.ZENDESK_SUBDOMAIN
       };
-      
-      if (!this._credentials.subdomain || !this._credentials.email || !this._credentials.apiToken) {
-        console.warn('Zendesk credentials not found in environment variables. Please set ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, and ZENDESK_API_TOKEN.');
+
+      if (!this._credentials.subdomain) {
+        console.warn('[ZendeskClient] ZENDESK_SUBDOMAIN not configured.');
       }
     }
     return this._credentials;
@@ -25,33 +72,42 @@ class ZendeskClient {
 
   getBaseUrl() {
     const { subdomain } = this.getCredentials();
-    return `https://${subdomain}.zendesk.com/api/v2`;
-  }
-
-  getAuthHeader() {
-    const { email, apiToken } = this.getCredentials();
-    const auth = Buffer.from(`${email}/token:${apiToken}`).toString('base64');
-    return `Basic ${auth}`;
-  }
-
-  async request(method, endpoint, data = null, params = null, retryProfile = 'default') {
-    const { subdomain, email, apiToken } = this.getCredentials();
-    
-    // Check credentials before making request
-    if (!subdomain || !email || !apiToken) {
+    if (!subdomain) {
       throw new ZendeskAuthError(
-        'Zendesk credentials not configured. Please set ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, and ZENDESK_API_TOKEN environment variables.',
-        401,
+        'ZENDESK_SUBDOMAIN not configured.',
+        500,
         null
       );
     }
+    return `https://${subdomain}.zendesk.com/api/v2`;
+  }
 
+  /**
+   * Get authorization header
+   * OAuth Bearer token is required (no fallback)
+   * @returns {string} Authorization header value
+   */
+  getAuthHeader() {
+    // OAuth Bearer token required
+    if (this.accessToken && !this.isTokenExpired()) {
+      return `Bearer ${this.accessToken}`;
+    }
+
+    // No valid authentication available
+    throw new ZendeskAuthError(
+      'No valid OAuth access token. Please complete OAuth authorization flow.',
+      401,
+      null
+    );
+  }
+
+  async request(method, endpoint, data = null, params = null, retryProfile = 'default') {
     const url = `${this.getBaseUrl()}${endpoint}`;
     const requestConfig = {
       method,
       url,
       headers: {
-        'Authorization': this.getAuthHeader(),
+        'Authorization': this.getAuthHeader(), // OAuth Bearer token
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
@@ -64,8 +120,9 @@ class ZendeskClient {
     // Log request details in debug mode
     if (this.debug) {
       console.log(`[Zendesk API] ${method} ${endpoint}`, {
-        params,
-        dataKeys: data ? Object.keys(data) : null
+        hasData: !!data,
+        hasParams: !!params,
+        authType: 'OAuth Bearer'
       });
     }
 
@@ -387,32 +444,30 @@ class ZendeskClient {
   // Test connection
   async testConnection() {
     try {
-      const { subdomain, email, apiToken } = this.getCredentials();
-      
-      if (!subdomain || !email || !apiToken) {
+      const { subdomain } = this.getCredentials();
+
+      if (!subdomain) {
         throw new ZendeskAuthError(
-          'Zendesk credentials not configured. Please set ZENDESK_SUBDOMAIN, ZENDESK_EMAIL, and ZENDESK_API_TOKEN environment variables.',
-          401,
+          'ZENDESK_SUBDOMAIN not configured.',
+          500,
           null
         );
       }
 
-      // console.log(`Testing connection to ${subdomain}.zendesk.com...`);
-      
       // Test connection by fetching current user info (no retry for test)
       const response = await this.request('GET', '/users/me.json', null, null, 'none');
-      
+
       if (response && response.user) {
-        // console.log(`✓ Successfully connected to Zendesk as ${response.user.name} (${response.user.email})`);
         return { success: true, user: response.user };
       } else {
         throw new Error('Unexpected response from Zendesk API');
       }
     } catch (error) {
-      // console.error(`✗ Failed to connect to Zendesk: ${error.message}`);
       throw error;
     }
   }
 }
 
-export const zendeskClient = new ZendeskClient();
+// ⚠️ CHANGED: Export class, not singleton, to avoid race conditions
+// Each request should create its own client instance or use a per-session client
+export { ZendeskClient };

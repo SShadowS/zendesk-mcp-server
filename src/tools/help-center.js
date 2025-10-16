@@ -1,18 +1,20 @@
 import { z } from 'zod';
-    import { zendeskClient } from '../zendesk-client.js';
+    import { getZendeskClient } from '../request-context.js';
+import { createErrorResponse } from '../utils/errors.js';
 
     export const helpCenterTools = [
       {
         name: "list_articles",
         description: "List Help Center articles",
-        schema: {
+        schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of articles per page (max 100)"),
           sort_by: z.string().optional().describe("Field to sort by"),
           sort_order: z.enum(["asc", "desc"]).optional().describe("Sort order (asc or desc)")
-        },
+        }),
         handler: async ({ page, per_page, sort_by, sort_order }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const params = { page, per_page, sort_by, sort_order };
             const result = await zendeskClient.listArticles(params);
             return {
@@ -29,11 +31,12 @@ import { z } from 'zod';
       {
         name: "get_article",
         description: "Get a specific Help Center article by ID",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Article ID")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const result = await zendeskClient.getArticle(id);
             return {
               content: [{ 
@@ -49,7 +52,7 @@ import { z } from 'zod';
       {
         name: "create_article",
         description: "Create a new Help Center article",
-        schema: {
+        schema: z.object({
           title: z.string().describe("Article title"),
           body: z.string().describe("Article body content (HTML)"),
           section_id: z.number().describe("Section ID where the article will be created"),
@@ -58,9 +61,10 @@ import { z } from 'zod';
           permission_group_id: z.number().optional().describe("Permission group ID for the article"),
           user_segment_id: z.number().optional().describe("User segment ID for the article"),
           label_names: z.array(z.string()).optional().describe("Labels for the article")
-        },
+        }),
         handler: async ({ title, body, section_id, locale, draft, permission_group_id, user_segment_id, label_names }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const articleData = {
               title,
               body,
@@ -86,7 +90,7 @@ import { z } from 'zod';
       {
         name: "update_article",
         description: "Update an existing Help Center article",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Article ID to update"),
           title: z.string().optional().describe("Updated article title"),
           body: z.string().optional().describe("Updated article body content (HTML)"),
@@ -95,9 +99,10 @@ import { z } from 'zod';
           permission_group_id: z.number().optional().describe("Updated permission group ID"),
           user_segment_id: z.number().optional().describe("Updated user segment ID"),
           label_names: z.array(z.string()).optional().describe("Updated labels")
-        },
+        }),
         handler: async ({ id, title, body, locale, draft, permission_group_id, user_segment_id, label_names }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const articleData = {};
             
             if (title !== undefined) articleData.title = title;
@@ -123,11 +128,12 @@ import { z } from 'zod';
       {
         name: "delete_article",
         description: "Delete a Help Center article",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Article ID to delete")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             await zendeskClient.deleteArticle(id);
             return {
               content: [{ 

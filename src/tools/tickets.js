@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
     dotenv.config();
-    
+
     import { z } from 'zod';
-    import { zendeskClient } from '../zendesk-client.js';
+    import { getZendeskClient } from '../request-context.js';
     import { createErrorResponse } from '../utils/errors.js';
     import Anthropic from '@anthropic-ai/sdk';
 
@@ -15,14 +15,15 @@ import dotenv from 'dotenv';
       {
         name: "list_tickets",
         description: "List tickets in Zendesk",
-        schema: {
+        schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of tickets per page (max 100)"),
           sort_by: z.string().optional().describe("Field to sort by"),
           sort_order: z.enum(["asc", "desc"]).optional().describe("Sort order (asc or desc)")
-        },
+        }),
         handler: async ({ page, per_page, sort_by, sort_order }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const params = { page, per_page, sort_by, sort_order };
             const result = await zendeskClient.listTickets(params);
             return {
@@ -39,12 +40,13 @@ import dotenv from 'dotenv';
       {
         name: "get_ticket",
         description: "Get a specific ticket by ID with optional comments",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Ticket ID"),
           include_comments: z.boolean().optional().describe("Include ticket comments in response (default: false)")
-        },
+        }),
         handler: async ({ id, include_comments = false }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const result = await zendeskClient.getTicket(id, include_comments);
             return {
               content: [{ 
@@ -60,7 +62,7 @@ import dotenv from 'dotenv';
       {
         name: "create_ticket",
         description: "Create a new ticket",
-        schema: {
+        schema: z.object({
           subject: z.string().describe("Ticket subject"),
           comment: z.string().describe("Ticket comment/description"),
           priority: z.enum(["urgent", "high", "normal", "low"]).optional().describe("Ticket priority"),
@@ -70,9 +72,10 @@ import dotenv from 'dotenv';
           group_id: z.number().optional().describe("Group ID for the ticket"),
           type: z.enum(["problem", "incident", "question", "task"]).optional().describe("Ticket type"),
           tags: z.array(z.string()).optional().describe("Tags for the ticket")
-        },
+        }),
         handler: async ({ subject, comment, priority, status, requester_id, assignee_id, group_id, type, tags }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const ticketData = {
               subject,
               comment: { body: comment },
@@ -100,7 +103,7 @@ import dotenv from 'dotenv';
       {
         name: "update_ticket",
         description: "Update an existing ticket",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Ticket ID to update"),
           subject: z.string().optional().describe("Updated ticket subject"),
           comment: z.string().optional().describe("New comment to add"),
@@ -110,9 +113,10 @@ import dotenv from 'dotenv';
           group_id: z.number().optional().describe("New group ID for the ticket"),
           type: z.enum(["problem", "incident", "question", "task"]).optional().describe("Updated ticket type"),
           tags: z.array(z.string()).optional().describe("Updated tags for the ticket")
-        },
+        }),
         handler: async ({ id, subject, comment, priority, status, assignee_id, group_id, type, tags }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const ticketData = {};
             
             if (subject !== undefined) ticketData.subject = subject;
@@ -139,11 +143,12 @@ import dotenv from 'dotenv';
       {
         name: "delete_ticket",
         description: "Delete a ticket",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Ticket ID to delete")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             await zendeskClient.deleteTicket(id);
             return {
               content: [{ 
@@ -159,14 +164,15 @@ import dotenv from 'dotenv';
       {
         name: "get_ticket_comments",
         description: "Get comments for a specific ticket",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Ticket ID"),
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of comments per page (max 100)"),
           sort_order: z.enum(["asc", "desc"]).optional().describe("Sort order (asc or desc)")
-        },
+        }),
         handler: async ({ id, page, per_page, sort_order }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const params = { page, per_page, sort_order };
             const result = await zendeskClient.getTicketComments(id, params);
             return {
@@ -183,14 +189,15 @@ import dotenv from 'dotenv';
       {
         name: "add_ticket_comment",
         description: "Add a public or internal comment to an existing ticket",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Ticket ID"),
           body: z.string().describe("Comment body"),
           type: z.enum(["public", "internal"]).optional().describe("Comment type: 'public' (visible to end users) or 'internal' (agents only). Default: 'internal'"),
           author_id: z.number().optional().describe("Author ID (defaults to current user)")
-        },
+        }),
         handler: async ({ id, body, type = "internal", author_id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const commentData = { 
               body, 
               public: type === "public"
@@ -212,11 +219,12 @@ import dotenv from 'dotenv';
       {
         name: "get_ticket_attachments",
         description: "Get all attachments from a ticket's comments",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Ticket ID")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const result = await zendeskClient.getTicketAttachments(id);
             return {
               content: [{ 
@@ -232,13 +240,14 @@ import dotenv from 'dotenv';
       {
         name: "analyze_ticket_images",
         description: "Download and analyze images from a ticket using AI vision with comprehensive analysis",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Ticket ID"),
           analysis_prompt: z.string().optional().describe("Custom analysis prompt (default: general image description)"),
           max_tokens: z.number().optional().describe("Maximum tokens for response (default: 4096, max: 4096)")
-        },
+        }),
         handler: async ({ id, analysis_prompt = "Describe this image in detail, including any text, UI elements, error messages, or relevant information visible.", max_tokens = 4096 }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const attachmentsResult = await zendeskClient.getTicketAttachments(id);
             const imageAttachments = attachmentsResult.attachments.filter(att => 
               att.content_type && att.content_type.startsWith('image/')

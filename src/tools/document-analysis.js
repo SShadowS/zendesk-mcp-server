@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { z } from 'zod';
-import { zendeskClient } from '../zendesk-client.js';
+import { getZendeskClient } from '../request-context.js';
 import { createErrorResponse } from '../utils/errors.js';
 import { DocumentHandler } from '../utils/document-handler.js';
 import { validateBatch, isBlocked } from '../config/document-types.js';
@@ -17,14 +17,14 @@ export const documentAnalysisTools = [
   {
     name: "analyze_ticket_documents",
     description: "Comprehensively analyze all document attachments from a ticket (PDF, DOCX, TXT, CSV, etc). v2.1 with truncation. Note: This may take 30-60 seconds for multiple documents.",
-    schema: {
+    schema: z.object({
       id: z.number().describe("Ticket ID"),
       analysis_prompt: z.string().optional().describe("Custom prompt for document analysis"),
       max_tokens: z.number().optional().describe("Maximum tokens for response (default: 4096)"),
       include_images: z.boolean().optional().describe("Also analyze image attachments (default: true)"),
       document_types: z.array(z.string()).optional().describe("Filter specific document types to analyze"),
       quick_mode: z.boolean().optional().describe("Quick mode: analyze only first 3 documents (default: false)")
-    },
+    }),
     handler: async ({ 
       id, 
       analysis_prompt = "Provide a comprehensive analysis of this document. Extract key information, summarize main points, identify any issues or action items, and highlight important details relevant for customer support.",
@@ -269,11 +269,12 @@ export const documentAnalysisTools = [
   {
     name: "get_document_summary",
     description: "Get a quick summary of all documents attached to a ticket",
-    schema: {
+    schema: z.object({
       id: z.number().describe("Ticket ID")
-    },
+    }),
     handler: async ({ id }) => {
       try {
+            const zendeskClient = getZendeskClient();
         const attachmentsResult = await zendeskClient.getTicketAttachments(id);
         
         if (!attachmentsResult.attachments || attachmentsResult.attachments.length === 0) {

@@ -1,16 +1,18 @@
 import { z } from 'zod';
-    import { zendeskClient } from '../zendesk-client.js';
+    import { getZendeskClient } from '../request-context.js';
+import { createErrorResponse } from '../utils/errors.js';
 
     export const automationsTools = [
       {
         name: "list_automations",
         description: "List automations in Zendesk",
-        schema: {
+        schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of automations per page (max 100)")
-        },
+        }),
         handler: async ({ page, per_page }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const params = { page, per_page };
             const result = await zendeskClient.listAutomations(params);
             return {
@@ -27,11 +29,12 @@ import { z } from 'zod';
       {
         name: "get_automation",
         description: "Get a specific automation by ID",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Automation ID")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const result = await zendeskClient.getAutomation(id);
             return {
               content: [{ 
@@ -47,7 +50,7 @@ import { z } from 'zod';
       {
         name: "create_automation",
         description: "Create a new automation",
-        schema: {
+        schema: z.object({
           title: z.string().describe("Automation title"),
           description: z.string().optional().describe("Automation description"),
           conditions: z.object({
@@ -66,9 +69,10 @@ import { z } from 'zod';
             field: z.string().describe("Field to modify"),
             value: z.any().describe("Value to set")
           })).describe("Actions to perform when automation conditions are met")
-        },
+        }),
         handler: async ({ title, description, conditions, actions }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const automationData = {
               title,
               description,
@@ -91,7 +95,7 @@ import { z } from 'zod';
       {
         name: "update_automation",
         description: "Update an existing automation",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Automation ID to update"),
           title: z.string().optional().describe("Updated automation title"),
           description: z.string().optional().describe("Updated automation description"),
@@ -111,9 +115,10 @@ import { z } from 'zod';
             field: z.string().describe("Field to modify"),
             value: z.any().describe("Value to set")
           })).optional().describe("Updated actions")
-        },
+        }),
         handler: async ({ id, title, description, conditions, actions }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const automationData = {};
             
             if (title !== undefined) automationData.title = title;
@@ -136,11 +141,12 @@ import { z } from 'zod';
       {
         name: "delete_automation",
         description: "Delete an automation",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Automation ID to delete")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             await zendeskClient.deleteAutomation(id);
             return {
               content: [{ 

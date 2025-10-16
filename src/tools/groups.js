@@ -1,16 +1,18 @@
 import { z } from 'zod';
-    import { zendeskClient } from '../zendesk-client.js';
+    import { getZendeskClient } from '../request-context.js';
+import { createErrorResponse } from '../utils/errors.js';
 
     export const groupsTools = [
       {
         name: "list_groups",
         description: "List agent groups in Zendesk",
-        schema: {
+        schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of groups per page (max 100)")
-        },
+        }),
         handler: async ({ page, per_page }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const params = { page, per_page };
             const result = await zendeskClient.listGroups(params);
             return {
@@ -27,11 +29,12 @@ import { z } from 'zod';
       {
         name: "get_group",
         description: "Get a specific group by ID",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Group ID")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const result = await zendeskClient.getGroup(id);
             return {
               content: [{ 
@@ -47,12 +50,13 @@ import { z } from 'zod';
       {
         name: "create_group",
         description: "Create a new agent group",
-        schema: {
+        schema: z.object({
           name: z.string().describe("Group name"),
           description: z.string().optional().describe("Group description")
-        },
+        }),
         handler: async ({ name, description }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const groupData = {
               name,
               description
@@ -73,13 +77,14 @@ import { z } from 'zod';
       {
         name: "update_group",
         description: "Update an existing group",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Group ID to update"),
           name: z.string().optional().describe("Updated group name"),
           description: z.string().optional().describe("Updated group description")
-        },
+        }),
         handler: async ({ id, name, description }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const groupData = {};
             
             if (name !== undefined) groupData.name = name;
@@ -100,11 +105,12 @@ import { z } from 'zod';
       {
         name: "delete_group",
         description: "Delete a group",
-        schema: {
+        schema: z.object({
           id: z.number().describe("Group ID to delete")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             await zendeskClient.deleteGroup(id);
             return {
               content: [{ 

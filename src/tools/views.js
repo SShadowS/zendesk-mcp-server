@@ -1,16 +1,18 @@
 import { z } from 'zod';
-    import { zendeskClient } from '../zendesk-client.js';
+    import { getZendeskClient } from '../request-context.js';
+import { createErrorResponse } from '../utils/errors.js';
 
     export const viewsTools = [
       {
         name: "list_views",
         description: "List views in Zendesk",
-        schema: {
+        schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of views per page (max 100)")
-        },
+        }),
         handler: async ({ page, per_page }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const params = { page, per_page };
             const result = await zendeskClient.listViews(params);
             return {
@@ -27,11 +29,12 @@ import { z } from 'zod';
       {
         name: "get_view",
         description: "Get a specific view by ID",
-        schema: {
+        schema: z.object({
           id: z.number().describe("View ID")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const result = await zendeskClient.getView(id);
             return {
               content: [{ 
@@ -47,7 +50,7 @@ import { z } from 'zod';
       {
         name: "create_view",
         description: "Create a new view",
-        schema: {
+        schema: z.object({
           title: z.string().describe("View title"),
           description: z.string().optional().describe("View description"),
           conditions: z.object({
@@ -62,9 +65,10 @@ import { z } from 'zod';
               value: z.any().describe("Value to compare against")
             })).optional()
           }).describe("Conditions for the view")
-        },
+        }),
         handler: async ({ title, description, conditions }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const viewData = {
               title,
               description,
@@ -86,7 +90,7 @@ import { z } from 'zod';
       {
         name: "update_view",
         description: "Update an existing view",
-        schema: {
+        schema: z.object({
           id: z.number().describe("View ID to update"),
           title: z.string().optional().describe("Updated view title"),
           description: z.string().optional().describe("Updated view description"),
@@ -102,9 +106,10 @@ import { z } from 'zod';
               value: z.any().describe("Value to compare against")
             })).optional()
           }).optional().describe("Updated conditions")
-        },
+        }),
         handler: async ({ id, title, description, conditions }) => {
           try {
+            const zendeskClient = getZendeskClient();
             const viewData = {};
             
             if (title !== undefined) viewData.title = title;
@@ -126,11 +131,12 @@ import { z } from 'zod';
       {
         name: "delete_view",
         description: "Delete a view",
-        schema: {
+        schema: z.object({
           id: z.number().describe("View ID to delete")
-        },
+        }),
         handler: async ({ id }) => {
           try {
+            const zendeskClient = getZendeskClient();
             await zendeskClient.deleteView(id);
             return {
               content: [{ 
