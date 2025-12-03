@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check:*)",
+      "mcp__tree-sitter-mcp__analyze_code",
+      "Bash(mkdir:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "tree-sitter-mcp"
+  ],
+  "disabledMcpjsonServers": [
+    "azureDevOps",
+    "zendesk"
+  ]
+}

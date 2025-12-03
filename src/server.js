@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-    import { ZendeskClient } from './zendesk-client.js';
+    import { ZendeskClient } from './zendesk-client/index.js';
     import { ticketsTools } from './tools/tickets.js';
     import { usersTools } from './tools/users.js';
     import { organizationsTools } from './tools/organizations.js';
@@ -17,6 +17,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
     import { talkTools } from './tools/talk.js';
     import { chatTools } from './tools/chat.js';
     import { documentAnalysisTools } from './tools/document-analysis.js';
+    import { filterToolsByMode, logToolModeInfo } from './config/tool-modes.js';
 
     // Create an MCP server for Zendesk API
     const server = new McpServer({
@@ -25,7 +26,7 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
       description: "MCP Server for interacting with the Zendesk API"
     });
 
-    // Register all tools
+    // Collect all available tools
     const allTools = [
       ...ticketsTools,
       ...usersTools,
@@ -43,8 +44,11 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
       ...documentAnalysisTools
     ];
 
+    // Filter tools based on MODE environment variable (full or lite)
+    const toolsToRegister = filterToolsByMode(allTools);
+
     // Register each tool with the server
-    allTools.forEach(tool => {
+    toolsToRegister.forEach(tool => {
       server.tool(
         tool.name,
         tool.schema,
@@ -52,6 +56,9 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
         { description: tool.description }
       );
     });
+
+    // Log tool mode info
+    logToolModeInfo(toolsToRegister.length);
 
     // Add a resource for Zendesk API documentation
     server.resource(
