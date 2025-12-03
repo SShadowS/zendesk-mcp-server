@@ -1,17 +1,183 @@
 import dotenv from 'dotenv';
-    dotenv.config();
+dotenv.config();
 
-    import { z } from 'zod';
-    import { getZendeskClient } from '../request-context.js';
-    import { createErrorResponse } from '../utils/errors.js';
-    import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
+import axios from 'axios';
+import { getZendeskClient } from '../request-context.js';
+import { createErrorResponse } from '../utils/errors.js';
+import Anthropic from '@anthropic-ai/sdk';
 
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: 60000 // 60 second timeout for API calls
-    });
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  timeout: 60000
+});
 
-    export const ticketsTools = [
+/**
+ * Fetch and filter image attachments from a ticket
+ * @param {Object} zendeskClient - Zendesk client instance
+ * @param {number} ticketId - Ticket ID
+ * @param {boolean} includeInline - Include inline images from HTML
+ * @returns {Object} { imageAttachments, inlineCount, attachedCount }
+ */
+async function fetchImageAttachments(zendeskClient, ticketId, includeInline) {
+  const attachmentsResult = await zendeskClient.getTicketAttachments(ticketId, {
+    includeInlineImages: includeInline
+  });
+
+  const imageAttachments = attachmentsResult.attachments.filter(att =>
+    att.content_type && att.content_type.startsWith('image/')
+  );
+
+  const inlineCount = imageAttachments.filter(a => a.is_inline).length;
+  const attachedCount = imageAttachments.length - inlineCount;
+
+  return { imageAttachments, inlineCount, attachedCount };
+}
+
+/**
+ * Download image data (handles inline vs regular attachments)
+ * @param {Object} zendeskClient - Zendesk client instance
+ * @param {Object} attachment - Attachment object
+ * @returns {Object} { data, contentType, size }
+ */
+async function downloadImageData(zendeskClient, attachment) {
+  if (attachment.is_inline) {
+    try {
+      const response = await axios({
+        method: 'GET',
+        url: attachment.content_url,
+        responseType: 'arraybuffer',
+        timeout: 30000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      return {
+        data: response.data,
+        contentType: response.headers['content-type'] || attachment.content_type,
+        size: response.data.length
+      };
+    } catch (inlineError) {
+      // Fallback to Zendesk auth for Zendesk-hosted inline images
+      return zendeskClient.downloadAttachment(attachment.content_url);
+    }
+  }
+
+  return zendeskClient.downloadAttachment(attachment.content_url);
+}
+
+/**
+ * Analyze an image using Claude's vision API
+ * @param {string} base64Data - Base64 encoded image data
+ * @param {string} contentType - Image content type
+ * @param {string} analysisPrompt - Prompt for analysis
+ * @param {number} maxTokens - Max tokens for response
+ * @returns {string} Analysis result text
+ */
+async function analyzeImageWithClaude(base64Data, contentType, analysisPrompt, maxTokens) {
+  const message = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: Math.min(maxTokens, 4096),
+    messages: [{
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: contentType,
+            data: base64Data
+          }
+        },
+        {
+          type: "text",
+          text: analysisPrompt
+        }
+      ]
+    }]
+  });
+
+  return message.content[0].text;
+}
+
+/**
+ * Process a single image attachment
+ * @param {Object} zendeskClient - Zendesk client instance
+ * @param {Object} attachment - Attachment object
+ * @param {string} analysisPrompt - Prompt for analysis
+ * @param {number} maxTokens - Max tokens for response
+ * @returns {Object} Processing result
+ */
+async function processImageAttachment(zendeskClient, attachment, analysisPrompt, maxTokens) {
+  try {
+    const downloadResult = await downloadImageData(zendeskClient, attachment);
+    const base64Data = Buffer.from(downloadResult.data).toString('base64');
+
+    const analysis = await analyzeImageWithClaude(
+      base64Data,
+      downloadResult.contentType || attachment.content_type,
+      analysisPrompt,
+      maxTokens
+    );
+
+    return {
+      attachment: {
+        id: attachment.id,
+        filename: attachment.file_name,
+        size: downloadResult.size || attachment.size,
+        content_type: downloadResult.contentType || attachment.content_type,
+        comment_id: attachment.comment_id,
+        is_inline: attachment.is_inline
+      },
+      analysis
+    };
+  } catch (error) {
+    return {
+      attachment: {
+        id: attachment.id,
+        filename: attachment.file_name,
+        comment_id: attachment.comment_id,
+        is_inline: attachment.is_inline
+      },
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Format image analysis results into readable text
+ * @param {Array} analyses - Array of analysis results
+ * @param {number} ticketId - Ticket ID
+ * @param {boolean} includeInline - Whether inline images were included
+ * @param {number} inlineCount - Count of inline images
+ * @param {number} attachedCount - Count of attached images
+ * @returns {string} Formatted result text
+ */
+function formatImageAnalysisResults(analyses, ticketId, includeInline, inlineCount, attachedCount) {
+  let resultText = `Found ${analyses.length} image(s) in ticket ${ticketId}`;
+
+  if (includeInline && (inlineCount > 0 || attachedCount > 0)) {
+    resultText += ` (${attachedCount} attached, ${inlineCount} inline)`;
+  }
+  resultText += `:\n\n`;
+
+  for (const result of analyses) {
+    const sourceType = result.attachment.is_inline ? '🔗 Inline' : '📎 Attached';
+
+    if (result.error) {
+      resultText += `❌ [${sourceType}] ${result.attachment.filename}: ${result.error}\n\n`;
+    } else {
+      const sizeStr = result.attachment.size ? `, ${result.attachment.size} bytes` : '';
+      resultText += `📷 [${sourceType}] ${result.attachment.filename} (${result.attachment.content_type}${sizeStr})\n`;
+      resultText += `Comment ID: ${result.attachment.comment_id}\n`;
+      resultText += `🔍 AI Analysis:\n${result.analysis}\n\n`;
+    }
+  }
+
+  return resultText;
+}
+
+export const ticketsTools = [
       {
         name: "list_tickets",
         description: "List tickets in Zendesk",
@@ -239,114 +405,54 @@ import dotenv from 'dotenv';
       },
       {
         name: "analyze_ticket_images",
-        description: "Download and analyze images from a ticket using AI vision with comprehensive analysis",
+        description: "Download and analyze images from a ticket using AI vision with comprehensive analysis. Includes both file attachments and inline images embedded in comment bodies.",
         schema: z.object({
           id: z.number().describe("Ticket ID"),
           analysis_prompt: z.string().optional().describe("Custom analysis prompt (default: general image description)"),
-          max_tokens: z.number().optional().describe("Maximum tokens for response (default: 4096, max: 4096)")
+          max_tokens: z.number().optional().describe("Maximum tokens for response (default: 4096, max: 4096)"),
+          include_inline: z.boolean().optional().describe("Include inline images from comment HTML bodies (default: true)")
         }),
-        handler: async ({ id, analysis_prompt = "Describe this image in detail, including any text, UI elements, error messages, or relevant information visible.", max_tokens = 4096 }) => {
+        handler: async ({
+          id,
+          analysis_prompt = "Describe this image in detail, including any text, UI elements, error messages, or relevant information visible.",
+          max_tokens = 4096,
+          include_inline = true
+        }) => {
           try {
             const zendeskClient = getZendeskClient();
-            const attachmentsResult = await zendeskClient.getTicketAttachments(id);
-            const imageAttachments = attachmentsResult.attachments.filter(att => 
-              att.content_type && att.content_type.startsWith('image/')
+
+            // Fetch and filter image attachments
+            const { imageAttachments, inlineCount, attachedCount } = await fetchImageAttachments(
+              zendeskClient,
+              id,
+              include_inline
             );
 
+            // Handle no images found
             if (imageAttachments.length === 0) {
               return {
-                content: [{ 
-                  type: "text", 
-                  text: "No image attachments found in this ticket."
+                content: [{
+                  type: "text",
+                  text: include_inline
+                    ? "No image attachments or inline images found in this ticket."
+                    : "No image attachments found in this ticket."
                 }]
               };
             }
 
+            // Process each image
             const analyses = [];
             for (const attachment of imageAttachments) {
-              try {
-                const downloadResult = await zendeskClient.downloadAttachment(attachment.content_url);
-                
-                // Convert buffer to base64 for Claude
-                const base64Data = Buffer.from(downloadResult.data).toString('base64');
-                const dataUrl = `data:${downloadResult.contentType};base64,${base64Data}`;
-
-                analyses.push({
-                  attachment: {
-                    id: attachment.id,
-                    filename: attachment.file_name,
-                    size: attachment.size,
-                    content_type: attachment.content_type,
-                    comment_id: attachment.comment_id
-                  },
-                  analysis: analysis_prompt,
-                  image_data: dataUrl
-                });
-              } catch (downloadError) {
-                analyses.push({
-                  attachment: {
-                    id: attachment.id,
-                    filename: attachment.file_name,
-                    comment_id: attachment.comment_id
-                  },
-                  error: `Failed to download: ${downloadError.message}`
-                });
-              }
+              const result = await processImageAttachment(zendeskClient, attachment, analysis_prompt, max_tokens);
+              analyses.push(result);
             }
 
-            let resultText = `Found ${imageAttachments.length} image(s) in ticket ${id}:\n\n`;
-            
-            for (const analysis of analyses) {
-              if (analysis.error) {
-                resultText += `❌ ${analysis.attachment.filename}: ${analysis.error}\n\n`;
-              } else if (analysis.image_data) {
-                resultText += `📷 ${analysis.attachment.filename} (${analysis.attachment.content_type}, ${analysis.attachment.size} bytes)\n`;
-                resultText += `Comment ID: ${analysis.attachment.comment_id}\n`;
-                resultText += `Analysis Prompt: ${analysis.analysis}\n\n`;
-                
-                try {
-                  // Analyze image with Claude's vision API
-                  const base64Data = analysis.image_data.split(',')[1];
-                  const message = await anthropic.messages.create({
-                    model: "claude-sonnet-4-20250514",
-                    max_tokens: Math.min(max_tokens, 4096),
-                    messages: [
-                      {
-                        role: "user",
-                        content: [
-                          {
-                            type: "image",
-                            source: {
-                              type: "base64",
-                              media_type: analysis.attachment.content_type,
-                              data: base64Data
-                            }
-                          },
-                          {
-                            type: "text",
-                            text: analysis.analysis
-                          }
-                        ]
-                      }
-                    ]
-                  });
-                  
-                  const visionAnalysis = message.content[0].text;
-                  resultText += `🔍 AI Analysis:\n${visionAnalysis}\n\n`;
-                  
-                } catch (visionError) {
-                  resultText += `❌ Vision analysis failed: ${visionError.message}\n`;
-                  resultText += `Image Data: Available (${Math.round(analysis.image_data.length / 1024)}KB base64)\n\n`;
-                }
-              }
-            }
-
+            // Format and return results
+            const resultText = formatImageAnalysisResults(analyses, id, include_inline, inlineCount, attachedCount);
             return {
-              content: [{ 
-                type: "text", 
-                text: resultText
-              }]
+              content: [{ type: "text", text: resultText }]
             };
+
           } catch (error) {
             return createErrorResponse(error);
           }

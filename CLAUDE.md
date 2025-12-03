@@ -87,6 +87,42 @@ Note: This project has no build step, test suite, or linting configured. The cod
    - Follow consistent pattern with name, schema, handler, and description
    - Organized by Zendesk product area (support, talk, chat, help-center)
 
+9. **Tool Mode Configuration** (`src/config/tool-modes.js`):
+   - Controls which tools are exposed based on `MODE` environment variable
+   - `full` mode (default): All 55 tools available
+   - `lite` mode: Only 10 essential tools for reduced context usage
+   - Functions: `getToolMode()`, `filterToolsByMode()`, `logToolModeInfo()`
+
+### Tool Modes
+
+The server supports two tool modes controlled by the `MODE` environment variable:
+
+**Full Mode (default):**
+```bash
+npm start
+# or
+MODE=full npm start
+```
+All 55 tools are registered and available.
+
+**Lite Mode:**
+```bash
+MODE=lite npm start
+```
+Only 10 essential tools are registered to reduce context usage:
+- `search` - Search across Zendesk data
+- `get_user` - Get user details
+- `list_tickets` - List tickets
+- `get_ticket` - Get ticket with comments
+- `get_ticket_comments` - Get ticket comments
+- `add_ticket_comment` - Add comment to ticket
+- `get_ticket_attachments` - Get ticket attachments
+- `analyze_ticket_images` - AI image analysis
+- `analyze_ticket_documents` - AI document analysis
+- `get_document_summary` - Document summary
+
+To modify the lite mode tool list, edit `LITE_MODE_TOOLS` in `src/config/tool-modes.js`.
+
 ### OAuth 2.1 Authentication Flow
 
 The server uses OAuth 2.1 with PKCE for secure authentication:

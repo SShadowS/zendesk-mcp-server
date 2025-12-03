@@ -167,6 +167,7 @@ ZENDESK_OAUTH_REDIRECT_URI=http://localhost:3030/zendesk/oauth/callback
 # Optional: Server Configuration
 PORT=3030                                             # HTTP server port (default: 3030)
 SERVER_BASE_URL=http://localhost:3030                 # Base URL for OAuth (production: https://your-domain.com)
+MODE=full                                             # Tool mode: 'full' (all 55 tools) or 'lite' (10 essential tools)
 
 # AI Features
 ANTHROPIC_API_KEY=sk-ant-...                          # For vision & analysis features
@@ -246,6 +247,56 @@ After configuring your `.env` file:
 - Tokens expire after 24 hours
 - Server automatically refreshes Zendesk tokens (2-hour TTL)
 - Re-authorize if you see 401 errors
+
+</details>
+
+### 🎚️ Tool Modes
+
+The server supports two tool modes to control context usage:
+
+<details>
+<summary><b>Full Mode (Default)</b></summary>
+
+All 55 tools are available. Use this for complete Zendesk API access.
+
+```bash
+# Default - no configuration needed
+npm start
+
+# Or explicitly set
+MODE=full npm start
+```
+
+</details>
+
+<details>
+<summary><b>Lite Mode</b></summary>
+
+Only 10 essential tools are exposed, reducing context usage for AI assistants.
+
+```bash
+MODE=lite npm start
+```
+
+**Lite Mode Tools:**
+| Tool | Description |
+|------|-------------|
+| `search` | Search across Zendesk data |
+| `get_user` | Get a specific user by ID |
+| `list_tickets` | List tickets |
+| `get_ticket` | Get ticket details with comments |
+| `get_ticket_comments` | Get ticket comments |
+| `add_ticket_comment` | Add public/internal comment |
+| `get_ticket_attachments` | Get ticket attachments |
+| `analyze_ticket_images` | AI-powered image analysis |
+| `analyze_ticket_documents` | AI-powered document analysis |
+| `get_document_summary` | Quick document summary |
+
+**When to use Lite Mode:**
+- Working with AI assistants that have limited context windows
+- Focused ticket support workflows
+- Reducing token usage in AI conversations
+- Simple read + comment operations
 
 </details>
 
@@ -520,7 +571,7 @@ Error: Token exchange failed: invalid_grant
 
 | Statistic | Value |
 |-----------|-------|
-| Total Tools | 40+ |
+| Total Tools | 55 (Full) / 10 (Lite) |
 | API Coverage | 100% |
 | Response Time | <100ms |
 | Active Users | Growing! |

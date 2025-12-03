@@ -4,7 +4,7 @@ import { initializeServer } from './server.js';
 import { randomUUID } from 'crypto';
 import { OAuthHandler, generateState } from './auth/oauth-handler.js';
 import { SessionStore } from './auth/session-store.js';
-import { ZendeskClient } from './zendesk-client.js';
+import { ZendeskClient } from './zendesk-client/index.js';
 import { storeZendeskClient, runInContext, clearZendeskClient } from './request-context.js';
 
 const app = express();
@@ -63,6 +63,68 @@ app.use((req, res, next) => {
 });
 
 /**
+ * Build WWW-Authenticate header for MCP OAuth
+ * @param {string} prmUrl - Protected Resource Metadata URL
+ * @returns {string} WWW-Authenticate header value
+ */
+function buildAuthenticateHeader(prmUrl) {
+  return `Bearer realm="mcp", resource_metadata="${prmUrl}"`;
+}
+
+/**
+ * Send 401 Unauthorized response with WWW-Authenticate header
+ * @param {Response} res - Express response object
+ * @param {string} prmUrl - Protected Resource Metadata URL
+ * @param {string} message - Error message
+ * @param {string} hint - Helpful hint for the user
+ */
+function sendUnauthorizedResponse(res, prmUrl, message, hint = 'Visit /oauth/authorize to get an access token') {
+  return res.status(401)
+    .header('WWW-Authenticate', buildAuthenticateHeader(prmUrl))
+    .json({
+      error: 'unauthorized',
+      message,
+      hint
+    });
+}
+
+/**
+ * Refresh Zendesk token with retry and exponential backoff
+ * @param {Object} session - Current session
+ * @param {string} mcpAccessToken - MCP access token
+ * @returns {Promise<boolean>} True if refresh succeeded
+ * @throws {Error} If refresh fails after retries
+ */
+async function refreshZendeskTokenWithRetry(session, mcpAccessToken) {
+  const MAX_ATTEMPTS = 2;
+  let lastError;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const newTokens = await oauth.refreshAccessToken(session.zendeskRefreshToken);
+      sessionStore.updateZendeskTokens(mcpAccessToken, newTokens);
+      console.log(`[Auth] Token refresh successful for session ${session.id}`);
+      return true;
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on 4xx errors (invalid_grant, etc.) - permanent failures
+      if (error.message && /4\d\d/.test(error.message)) {
+        throw error;
+      }
+
+      // Transient error - retry with backoff
+      if (attempt < MAX_ATTEMPTS) {
+        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 2000);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Authenticate Bearer token and manage Zendesk token refresh
  * Follows MCP OAuth specification for WWW-Authenticate header format
  */
@@ -70,113 +132,42 @@ async function authenticateBearer(req, res, next) {
   const serverUrl = process.env.SERVER_BASE_URL || `http://localhost:${PORT}`;
   const prmUrl = `${serverUrl}/.well-known/oauth-protected-resource`;
 
+  // Check for Bearer token
   const authHeader = req.headers.authorization;
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // MCP spec: Use resource_metadata parameter to point to Protected Resource Metadata
-    const authenticateHeader = `Bearer realm="mcp", resource_metadata="${prmUrl}"`;
-
-    return res.status(401)
-      .header('WWW-Authenticate', authenticateHeader)
-      .json({
-        error: 'unauthorized',
-        message: 'Missing or invalid Authorization header',
-        hint: 'Visit /oauth/authorize to get an access token'
-      });
+    return sendUnauthorizedResponse(res, prmUrl, 'Missing or invalid Authorization header');
   }
 
-  const mcpAccessToken = authHeader.slice(7); // Remove "Bearer " prefix
+  const mcpAccessToken = authHeader.slice(7);
 
-  // Lookup session
+  // Lookup and validate session
   const session = sessionStore.getSession(mcpAccessToken);
-
   if (!session) {
-    // No valid OAuth session found
-    const authenticateHeader = `Bearer realm="mcp", resource_metadata="${prmUrl}"`;
-
-    return res.status(401)
-      .header('WWW-Authenticate', authenticateHeader)
-      .json({
-        error: 'unauthorized',
-        message: 'Invalid or expired token',
-        hint: 'Visit /oauth/authorize to get a new access token'
-      });
+    return sendUnauthorizedResponse(res, prmUrl, 'Invalid or expired token', 'Visit /oauth/authorize to get a new access token');
   }
 
-  // Check if MCP token is expired
+  // Check MCP token expiry
   if (session.mcpTokenExpiry && Date.now() >= session.mcpTokenExpiry) {
     console.log(`[Auth] MCP token expired for session ${session.id}`);
-
-    // Delete expired session
     sessionStore.deleteSession(mcpAccessToken);
-
-    const authenticateHeader = `Bearer realm="mcp", resource_metadata="${prmUrl}"`;
-
-    return res.status(401)
-      .header('WWW-Authenticate', authenticateHeader)
-      .json({
-        error: 'unauthorized',
-        message: 'Token expired',
-        hint: 'Visit /oauth/authorize to get a new access token'
-      });
+    return sendUnauthorizedResponse(res, prmUrl, 'Token expired', 'Visit /oauth/authorize to get a new access token');
   }
 
-  // Check if Zendesk token needs refresh
+  // Refresh Zendesk token if needed
   if (sessionStore.isZendeskTokenExpiring(session)) {
     try {
       console.log(`[Auth] Refreshing Zendesk token for session ${session.id}`);
-
-      // Retry token refresh with exponential backoff (max 2 attempts)
-      let lastError;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const newTokens = await oauth.refreshAccessToken(session.zendeskRefreshToken);
-          sessionStore.updateZendeskTokens(mcpAccessToken, newTokens);
-          console.log(`[Auth] Token refresh successful for session ${session.id}`);
-          break; // Success - exit retry loop
-        } catch (error) {
-          lastError = error;
-
-          // Don't retry on 4xx errors (invalid_grant, etc.) - permanent failures
-          if (error.message && /4\d\d/.test(error.message)) {
-            throw error;
-          }
-
-          // Transient error - retry with backoff
-          if (attempt < 2) {
-            const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 2000);
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-          }
-        }
-      }
-
-      // If we exhausted retries, throw the last error
-      if (lastError) {
-        throw lastError;
-      }
-
+      await refreshZendeskTokenWithRetry(session, mcpAccessToken);
     } catch (error) {
       console.error('[Auth] Token refresh failed:', error);
-
-      // Token refresh failed - session is invalid
       sessionStore.deleteSession(mcpAccessToken);
-
-      const authenticateHeader = `Bearer realm="mcp", resource_metadata="${prmUrl}"`;
-
-      return res.status(401)
-        .header('WWW-Authenticate', authenticateHeader)
-        .json({
-          error: 'unauthorized',
-          message: 'Token refresh failed. Please re-authorize.',
-          hint: 'Visit /oauth/authorize to get a new access token'
-        });
+      return sendUnauthorizedResponse(res, prmUrl, 'Token refresh failed. Please re-authorize.', 'Visit /oauth/authorize to get a new access token');
     }
   }
 
   // Set session context for downstream handlers
   req.session = session;
   req.mcpAccessToken = mcpAccessToken;
-
   next();
 }
 
