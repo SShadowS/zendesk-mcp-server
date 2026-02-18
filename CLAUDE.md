@@ -11,7 +11,7 @@ This is a Model Context Protocol (MCP) server that provides comprehensive access
 - HTTP-based server using Streamable HTTP transport
 - Per-session Zendesk clients with automatic token management
 - Comprehensive retry logic with exponential backoff
-- AI-powered document and image analysis
+- AI-powered document and image analysis with ticket-context-aware prompts
 
 ## Commands
 
@@ -25,11 +25,26 @@ This is a Model Context Protocol (MCP) server that provides comprehensive access
 - `npm install` - Install dependencies
 
 ### Testing
+- `npm test` - Run all unit and integration tests with vitest
+- `npm run test:watch` - Run tests in watch mode during development
 - Visit `http://localhost:3030/oauth/authorize` to start OAuth flow
 - Visit `http://localhost:3030/health` to check server health
 - Visit `http://localhost:3030/.well-known/oauth-protected-resource` for RFC9728 metadata
 
-Note: This project has no build step, test suite, or linting configured. The code runs directly as ES modules.
+Note: This project has no build step or linting configured. The code runs directly as ES modules. Tests use vitest.
+
+### Test Structure
+
+Tests are in `tests/` mirroring the `src/` directory structure:
+- `tests/tools/tickets-image-analysis.test.js` - Image analysis tool unit tests
+- `tests/tools/document-analysis.test.js` - Document analysis tool unit tests
+- `tests/tools/image-analysis.integration.test.js` - Real Anthropic API integration tests
+- `tests/tools/ticket-analysis.integration.test.js` - Real Zendesk + Anthropic integration tests (ticket #256829)
+- `tests/config/document-types.test.js` - Document type validation tests
+- `tests/utils/document-handler.test.js` - Document handler routing tests
+- `tests/zendesk-client/tickets.test.js` - Zendesk client ticket methods tests
+
+Integration tests require `.env` credentials and are automatically skipped when credentials are missing.
 
 ## Architecture
 
@@ -86,8 +101,14 @@ Note: This project has no build step, test suite, or linting configured. The cod
    - Tools call `getZendeskClient()` to access per-session client
    - Follow consistent pattern with name, schema, handler, and description
    - Organized by Zendesk product area (support, talk, chat, help-center)
+   - Image and document analysis tools use support-focused prompts with ticket context (see AI Analysis Prompt Architecture below)
 
-9. **Tool Mode Configuration** (`src/config/tool-modes.js`):
+9. **Ticket Context Utility** (`src/utils/ticket-context.js`):
+   - Shared `buildTicketContext()` helper used by image and document analysis tools
+   - Extracts ticket subject, description, tags, and recent comments
+   - Returns a context string prepended to analysis prompts for Claude
+
+10. **Tool Mode Configuration** (`src/config/tool-modes.js`):
    - Controls which tools are exposed based on `MODE` environment variable
    - `full` mode (default): All 55 tools available
    - `lite` mode: Only 10 essential tools for reduced context usage
@@ -348,6 +369,39 @@ These scripts:
 - Verify PDF conversion works correctly
 - Help debug conversion issues
 - Bypass MCP Inspector caching issues
+
+### AI Analysis Prompt Architecture
+
+Image and document analysis tools use a structured prompt strategy to produce support-focused results rather than generic descriptions:
+
+**System Prompt** (set via `system` parameter on Claude API calls):
+- Frames Claude as a "technical support analyst"
+- Directs focus to error messages, versions, configuration, UI anomalies
+- Instructs concise output with actionable findings first
+
+**Ticket Context** (prepended to the user prompt):
+- Fetched once per handler call via `zendeskClient.getTicket(id, true)`
+- Includes ticket subject, customer description (first 500 chars), tags, and last 5 comments
+- Built by `buildTicketContext()` in `src/utils/ticket-context.js`
+- Non-fatal: if ticket fetch fails, analysis proceeds without context
+
+**Default Prompts** (used when no custom `analysis_prompt` is provided):
+- **Image** (`DEFAULT_IMAGE_ANALYSIS_PROMPT` in `src/tools/tickets.js`): Structured extraction of errors, versions, settings, user actions, anomalies
+- **Document** (`DEFAULT_DOCUMENT_ANALYSIS_PROMPT` in `src/tools/document-analysis.js`): Structured extraction of key facts, errors/logs, config, action items, reference numbers
+
+**Custom Prompts**: Users can override via the `analysis_prompt` parameter. Ticket context is still prepended, and the system prompt is still applied.
+
+**Flow:**
+```
+Handler called with ticket ID
+  → Fetch ticket with comments (one API call)
+  → Build context string from ticket data
+  → For each attachment:
+      → Download attachment
+      → Call Claude with: system prompt + (ticket context + analysis prompt) + attachment
+      → Collect result
+  → Format and return all results
+```
 
 ### Debugging Document Conversion Issues
 
