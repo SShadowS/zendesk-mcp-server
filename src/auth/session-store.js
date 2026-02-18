@@ -31,16 +31,18 @@ export class SessionStore {
 
   /**
    * Create a new session for OAuth flow
-   * @param {string} state - CSRF protection state
+   * @param {string} internalState - Internal state for Zendesk flow
    * @param {string} zendeskVerifier - PKCE verifier for Zendesk
    * @param {string} clientRedirectUri - Client's redirect URI (optional)
    * @param {string} clientCodeChallenge - Client's PKCE challenge (optional)
+   * @param {string} clientState - Client's original state (must be returned in callback)
    * @returns {Object} Session data
    */
-  createOAuthSession(state, zendeskVerifier, clientRedirectUri = null, clientCodeChallenge = null) {
+  createOAuthSession(internalState, zendeskVerifier, clientRedirectUri = null, clientCodeChallenge = null, clientState = null) {
     const session = {
       id: randomUUID(),
-      state: state,
+      state: internalState,  // Internal state for Zendesk flow
+      clientState: clientState,  // Client's original state - MUST be returned!
       zendeskVerifier: zendeskVerifier, // PKCE verifier for Zendesk flow
       clientCodeChallenge: clientCodeChallenge, // Client's PKCE challenge
       clientRedirectUri: clientRedirectUri, // Store client's redirect URI
@@ -54,7 +56,7 @@ export class SessionStore {
       scopes: []
     };
 
-    this.sessionsByState.set(state, session);
+    this.sessionsByState.set(internalState, session);
     return session;
   }
 

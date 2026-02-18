@@ -26,11 +26,80 @@ const sessionStore = new SessionStore();
 // - Sessions lost on server restart
 // - Cannot scale horizontally (no shared state between instances)
 // - Not suitable for production workloads
-const transports = new Map();
 
 // Per-session Zendesk clients
 // Each session gets its own client instance with OAuth tokens
 const zendeskClients = new Map();
+
+// Per-session MCP transports and servers
+// Each OAuth session gets its own MCP transport/server pair
+const mcpSessions = new Map();  // Map<oauthSessionId, { transport, server }>
+
+/**
+ * Create a new MCP transport and server for an OAuth session
+ * @param {string} oauthSessionId - The OAuth session ID
+ * @returns {Promise<{ transport, server }>}
+ */
+async function createMcpSession(oauthSessionId) {
+  // Create a new transport for this session
+  // Using STATELESS mode (sessionIdGenerator: undefined) because:
+  // 1. Claude Code sends GET before POST (tries to establish SSE first)
+  // 2. Stateful mode requires POST with initialize before GET works
+  // 3. Stateless mode skips the _initialized check in validateSession
+  // Session isolation is handled at the OAuth level (one transport per OAuth session)
+  const transport = new StreamableHTTPServerTransport({
+    // Stateless mode - no MCP session ID validation
+    // OAuth session provides isolation instead
+    onsessioninitialized: (mcpSessionId) => {
+      console.log(`[MCP] Session ${oauthSessionId}: Transport initialized`);
+    },
+    onsessionclosed: (mcpSessionId) => {
+      console.log(`[MCP] Session ${oauthSessionId}: Transport closed`);
+    }
+  });
+
+  // Create and connect a new server instance
+  const server = await initializeServer();
+  await server.connect(transport);
+
+  console.log(`[MCP] Created transport/server for OAuth session ${oauthSessionId}`);
+
+  return { transport, server };
+}
+
+/**
+ * Get or create MCP session for an OAuth session
+ * @param {string} oauthSessionId - The OAuth session ID
+ * @returns {Promise<{ transport, server }>}
+ */
+async function getOrCreateMcpSession(oauthSessionId) {
+  let mcpSession = mcpSessions.get(oauthSessionId);
+
+  if (!mcpSession) {
+    mcpSession = await createMcpSession(oauthSessionId);
+    mcpSessions.set(oauthSessionId, mcpSession);
+  }
+
+  return mcpSession;
+}
+
+/**
+ * Clean up MCP session when OAuth session ends
+ * @param {string} oauthSessionId - The OAuth session ID
+ */
+async function cleanupMcpSession(oauthSessionId) {
+  const mcpSession = mcpSessions.get(oauthSessionId);
+  if (mcpSession) {
+    try {
+      await mcpSession.transport.close();
+      await mcpSession.server.close();
+    } catch (error) {
+      console.error(`[MCP] Error cleaning up session ${oauthSessionId}:`, error);
+    }
+    mcpSessions.delete(oauthSessionId);
+    console.log(`[MCP] Cleaned up session ${oauthSessionId}`);
+  }
+}
 
 // Middleware
 // ⚠️ SECURITY: Limit request body size to prevent DoS attacks
@@ -225,82 +294,45 @@ function getOrCreateZendeskClient(session) {
   return client;
 }
 
-/**
- * Get or create transport for the session
- */
-function getOrCreateTransport(sessionId) {
-  let transport = transports.get(sessionId);
-
-  if (!transport) {
-    // Create new transport for this session
-    transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => sessionId,
-      onsessioninitialized: (sid) => {
-        console.log(`Session initialized: ${sid}`);
-      },
-      onsessionclosed: (sid) => {
-        console.log(`Session closed: ${sid}`);
-        transports.delete(sid);
-
-        // Clean up Zendesk client for this session
-        zendeskClients.delete(sid);
-        clearZendeskClient(sid);
-        console.log(`[Zendesk] Cleaned up client for session ${sid}`);
-      }
-    });
-
-    transports.set(sessionId, transport);
-  }
-
-  return transport;
-}
 
 /**
  * ALL /mcp - Main MCP endpoint (handles GET, POST, DELETE)
- * StreamableHTTPServerTransport automatically routes by method:
- * - GET: Establishes SSE stream for server messages
- * - POST: Handles client JSON-RPC requests
- * - DELETE: Terminates session and cleans up
+ * Using per-session STATEFUL mode with SSE support
  */
 app.all('/mcp', authenticateBearer, async (req, res) => {
-  try {
-    const sessionId = req.session.id;
+  const oauthSessionId = req.session.id;
+  const mcpSessionId = req.headers['mcp-session-id'];
 
-    // Get or create Zendesk client for this session
-    const zendeskClient = getOrCreateZendeskClient(req.session);
+  console.log(`[MCP] ${req.method} request - OAuth: ${oauthSessionId}, MCP: ${mcpSessionId || 'new'}`);
 
-    // Store client so it can be accessed by tools
-    storeZendeskClient(sessionId, zendeskClient);
+  // Get or create Zendesk client for this OAuth session
+  const zendeskClient = getOrCreateZendeskClient(req.session);
 
-    // Get or create transport for this session
-    const transport = getOrCreateTransport(sessionId);
+  // Store client so it can be accessed by tools
+  storeZendeskClient(oauthSessionId, zendeskClient);
 
-    // Initialize MCP server (idempotent)
-    const server = await initializeServer();
+  // Get or create MCP session (transport/server) for this OAuth session
+  const mcpSession = await getOrCreateMcpSession(oauthSessionId);
 
-    // Connect transport if not already connected
-    // Note: server.connect() is idempotent in StreamableHTTPServerTransport
-    if (!transport.isConnected) {
-      await server.connect(transport);
-      transport.isConnected = true;
+  // Handle the request within async context so tools can access session
+  await runInContext(oauthSessionId, async () => {
+    try {
+      await mcpSession.transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      console.error('[MCP] Request error:', error);
+
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'internal_error',
+          message: error.message
+        });
+      }
     }
-
-    // Handle the request within async context so tools can access session
-    await runInContext(sessionId, async () => {
-      await transport.handleRequest(req, res, req.body);
-    });
-
-  } catch (error) {
-    console.error('MCP request error:', error);
-
-    if (!res.headersSent) {
-      res.status(500).json({
-        error: 'internal_error',
-        message: error.message
-      });
-    }
-  }
+  });
 });
+
+// Note: MCP transports are now created per-session in getOrCreateMcpSession()
+// This provides proper isolation between authenticated users
 
 /**
  * GET /oauth/authorize - Initiate OAuth flow
@@ -321,6 +353,7 @@ app.get('/oauth/authorize', (req, res) => {
     const clientRedirectUri = req.query.redirect_uri;
     const clientCodeChallenge = req.query.code_challenge;
     const clientCodeChallengeMethod = req.query.code_challenge_method;
+    const clientState = req.query.state;  // Claude Code's state - must be preserved!
 
     if (clientRedirectUri) {
       console.log(`[OAuth] Authorization request with client redirect_uri: ${clientRedirectUri}`);
@@ -329,18 +362,21 @@ app.get('/oauth/authorize', (req, res) => {
       console.log(`[OAuth] Client provided code_challenge: ${clientCodeChallenge}`);
       console.log(`[OAuth] Challenge method: ${clientCodeChallengeMethod}`);
     }
+    if (clientState) {
+      console.log(`[OAuth] Client provided state: ${clientState}`);
+    }
 
     // Generate PKCE for Zendesk (our server-to-Zendesk flow)
     const { verifier: zendeskVerifier, challenge: zendeskChallenge } = oauth.generatePKCE();
 
-    // Generate state for CSRF protection
-    const state = generateState();
+    // Generate internal state for Zendesk flow (different from client's state)
+    const internalState = generateState();
 
-    // Create session with client's redirect URI and challenge
-    const session = sessionStore.createOAuthSession(state, zendeskVerifier, clientRedirectUri, clientCodeChallenge);
+    // Create session with client's redirect URI, challenge, AND client's state
+    const session = sessionStore.createOAuthSession(internalState, zendeskVerifier, clientRedirectUri, clientCodeChallenge, clientState);
 
-    // Build authorization URL (using Zendesk PKCE challenge)
-    const authUrl = oauth.getAuthorizationUrl(state, zendeskChallenge);
+    // Build authorization URL (using Zendesk PKCE challenge and internal state)
+    const authUrl = oauth.getAuthorizationUrl(internalState, zendeskChallenge);
 
     console.log(`[OAuth] Starting authorization flow for session ${session.id}`);
 
@@ -405,7 +441,10 @@ app.get('/zendesk/oauth/callback', async (req, res) => {
     if (session.clientRedirectUri) {
       const redirectUrl = new URL(session.clientRedirectUri);
       redirectUrl.searchParams.set('code', authorizationCode);
-      redirectUrl.searchParams.set('state', state);
+      // IMPORTANT: Return client's original state, not our internal state!
+      if (session.clientState) {
+        redirectUrl.searchParams.set('state', session.clientState);
+      }
 
       console.log(`[OAuth] Redirecting to client: ${redirectUrl.toString()}`);
 
@@ -806,19 +845,14 @@ app.use((err, req, res, next) => {
  * Start the server
  */
 export async function startHttpServer() {
-  // Test Zendesk connection on startup
-  try {
-    await initializeServer();
-    console.log('✓ Zendesk MCP Server initialized');
-  } catch (error) {
-    console.warn('⚠ Warning: Server initialization failed:', error.message);
-    console.warn('⚠ Server will start but API calls may fail');
-  }
+  // MCP transports are created per-session in getOrCreateMcpSession()
+  // This provides proper isolation between authenticated users
+  console.log('✓ Zendesk MCP Server ready (per-session transport mode)');
 
   app.listen(PORT, () => {
     console.log(`🚀 Zendesk MCP Server listening on http://localhost:${PORT}`);
     console.log(`📡 MCP endpoint: http://localhost:${PORT}/mcp`);
-    console.log(`🔐 OAuth flow will be available in Phase 4`);
+    console.log(`🔐 OAuth: authenticate at /oauth/authorize`);
     console.log(`❤️  Health check: http://localhost:${PORT}/health`);
   });
 }
