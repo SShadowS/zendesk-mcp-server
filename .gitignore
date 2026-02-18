@@ -82,6 +82,10 @@ out/
 *.pid
 *.seed
 *.pid.lock
+.mcp.json
+
+# Serena
+.serena/
 
 # Project specific
 PLAN.md
