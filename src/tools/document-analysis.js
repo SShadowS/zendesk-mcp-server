@@ -5,6 +5,7 @@ import { z } from 'zod';
 import axios from 'axios';
 import { getZendeskClient } from '../request-context.js';
 import { createErrorResponse } from '../utils/errors.js';
+import { buildTicketContext } from '../utils/ticket-context.js';
 import { DocumentHandler } from '../utils/document-handler.js';
 import { validateBatch, isBlocked } from '../config/document-types.js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -13,6 +14,27 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
   timeout: 60000
 });
+
+const DOCUMENT_ANALYSIS_SYSTEM_PROMPT = `You are a technical support analyst examining attachments from a customer support ticket. Your job is to extract information that helps resolve the customer's issue.
+
+Focus on:
+- Error messages, codes, and stack traces
+- Software versions, build numbers, environment details
+- Configuration settings and their values
+- UI state that indicates a problem (greyed-out buttons, missing elements, incorrect values)
+- Steps the customer appears to have taken
+- Any discrepancy between expected and actual behavior
+
+Be concise. Lead with the most actionable finding. Skip describing obvious UI chrome unless it's relevant to the issue.`;
+
+const DEFAULT_DOCUMENT_ANALYSIS_PROMPT = `Analyze this document from a support ticket. Extract:
+1. Key facts and data points relevant to the support issue
+2. Error details, logs, or diagnostic information
+3. Configuration or settings
+4. Action items or next steps mentioned
+5. Any reference numbers, dates, or version information
+
+Summarize the document's relevance to the support issue in 1-2 sentences at the top.`;
 
 /**
  * Fetch and filter attachments from a ticket
@@ -132,7 +154,7 @@ async function downloadAttachmentData(zendeskClient, attachment) {
  * @param {number} maxTokens - Max tokens for response
  * @returns {Object} Analysis result
  */
-async function analyzeDocument(attachment, downloadData, analysisPrompt, maxTokens) {
+async function analyzeDocument(attachment, downloadData, analysisPrompt, maxTokens, systemPrompt) {
   // Route to appropriate processor
   const routingResult = await DocumentHandler.route(attachment, downloadData);
 
@@ -191,11 +213,17 @@ async function analyzeDocument(attachment, downloadData, analysisPrompt, maxToke
   }
 
   // Call Claude API
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+  const requestParams = {
+    model: "claude-sonnet-4-6",
     max_tokens: Math.min(maxTokens, 4096),
     messages
-  });
+  };
+
+  if (systemPrompt) {
+    requestParams.system = systemPrompt;
+  }
+
+  const response = await anthropic.messages.create(requestParams);
 
   const result = {
     attachment: attachment.file_name,
@@ -287,7 +315,7 @@ export const documentAnalysisTools = [
     }),
     handler: async ({
       id,
-      analysis_prompt = "Provide a comprehensive analysis of this document. Extract key information, summarize main points, identify any issues or action items, and highlight important details relevant for customer support.",
+      analysis_prompt,
       max_tokens = 4096,
       include_images = true,
       document_types = null,
@@ -317,12 +345,27 @@ export const documentAnalysisTools = [
           };
         }
 
+        // Fetch ticket context for better analysis (one call for all documents)
+        let ticketContext = '';
+        try {
+          const ticketData = await zendeskClient.getTicket(id, true);
+          ticketContext = buildTicketContext(ticketData);
+        } catch (err) {
+          // Non-fatal: proceed without context if ticket fetch fails
+        }
+
+        // Build the final prompt with ticket context
+        const basePrompt = analysis_prompt || DEFAULT_DOCUMENT_ANALYSIS_PROMPT;
+        const contextualPrompt = ticketContext
+          ? `${ticketContext}\n\n${basePrompt}`
+          : basePrompt;
+
         // Process each document
         const analyses = [];
         for (const attachment of documentsToProcess) {
           try {
             const downloadResult = await downloadAttachmentData(zendeskClient, attachment);
-            const result = await analyzeDocument(attachment, downloadResult.data, analysis_prompt, max_tokens);
+            const result = await analyzeDocument(attachment, downloadResult.data, contextualPrompt, max_tokens, DOCUMENT_ANALYSIS_SYSTEM_PROMPT);
             analyses.push(result);
           } catch (error) {
             analyses.push({ attachment: attachment.file_name, error: error.message });

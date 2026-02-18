@@ -5,12 +5,34 @@ import { z } from 'zod';
 import axios from 'axios';
 import { getZendeskClient } from '../request-context.js';
 import { createErrorResponse } from '../utils/errors.js';
+import { buildTicketContext } from '../utils/ticket-context.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
   timeout: 60000
 });
+
+const IMAGE_ANALYSIS_SYSTEM_PROMPT = `You are a technical support analyst examining attachments from a customer support ticket. Your job is to extract information that helps resolve the customer's issue.
+
+Focus on:
+- Error messages, codes, and stack traces
+- Software versions, build numbers, environment details
+- Configuration settings and their values
+- UI state that indicates a problem (greyed-out buttons, missing elements, incorrect values)
+- Steps the customer appears to have taken
+- Any discrepancy between expected and actual behavior
+
+Be concise. Lead with the most actionable finding. Skip describing obvious UI chrome unless it's relevant to the issue.`;
+
+const DEFAULT_IMAGE_ANALYSIS_PROMPT = `Analyze this image from a support ticket. Extract:
+1. Any error messages, warning dialogs, or status indicators
+2. Software/product version numbers or environment details visible
+3. Configuration or settings shown
+4. What action the user appears to be performing
+5. Any anomaly or issue visible
+
+If this is a screenshot of a UI, identify the application and the specific screen/page shown.`;
 
 /**
  * Fetch and filter image attachments from a ticket
@@ -74,9 +96,9 @@ async function downloadImageData(zendeskClient, attachment) {
  * @param {number} maxTokens - Max tokens for response
  * @returns {string} Analysis result text
  */
-async function analyzeImageWithClaude(base64Data, contentType, analysisPrompt, maxTokens) {
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+async function analyzeImageWithClaude(base64Data, contentType, analysisPrompt, maxTokens, systemPrompt) {
+  const requestParams = {
+    model: "claude-sonnet-4-6",
     max_tokens: Math.min(maxTokens, 4096),
     messages: [{
       role: "user",
@@ -95,7 +117,13 @@ async function analyzeImageWithClaude(base64Data, contentType, analysisPrompt, m
         }
       ]
     }]
-  });
+  };
+
+  if (systemPrompt) {
+    requestParams.system = systemPrompt;
+  }
+
+  const message = await anthropic.messages.create(requestParams);
 
   return message.content[0].text;
 }
@@ -108,7 +136,7 @@ async function analyzeImageWithClaude(base64Data, contentType, analysisPrompt, m
  * @param {number} maxTokens - Max tokens for response
  * @returns {Object} Processing result
  */
-async function processImageAttachment(zendeskClient, attachment, analysisPrompt, maxTokens) {
+async function processImageAttachment(zendeskClient, attachment, analysisPrompt, maxTokens, systemPrompt) {
   try {
     const downloadResult = await downloadImageData(zendeskClient, attachment);
     const base64Data = Buffer.from(downloadResult.data).toString('base64');
@@ -117,7 +145,8 @@ async function processImageAttachment(zendeskClient, attachment, analysisPrompt,
       base64Data,
       downloadResult.contentType || attachment.content_type,
       analysisPrompt,
-      maxTokens
+      maxTokens,
+      systemPrompt
     );
 
     return {
@@ -414,7 +443,7 @@ export const ticketsTools = [
         }),
         handler: async ({
           id,
-          analysis_prompt = "Describe this image in detail, including any text, UI elements, error messages, or relevant information visible.",
+          analysis_prompt,
           max_tokens = 4096,
           include_inline = true
         }) => {
@@ -440,10 +469,25 @@ export const ticketsTools = [
               };
             }
 
+            // Fetch ticket context for better analysis (one call for all images)
+            let ticketContext = '';
+            try {
+              const ticketData = await zendeskClient.getTicket(id, true);
+              ticketContext = buildTicketContext(ticketData);
+            } catch (err) {
+              // Non-fatal: proceed without context if ticket fetch fails
+            }
+
+            // Build the final prompt with ticket context
+            const basePrompt = analysis_prompt || DEFAULT_IMAGE_ANALYSIS_PROMPT;
+            const contextualPrompt = ticketContext
+              ? `${ticketContext}\n\n${basePrompt}`
+              : basePrompt;
+
             // Process each image
             const analyses = [];
             for (const attachment of imageAttachments) {
-              const result = await processImageAttachment(zendeskClient, attachment, analysis_prompt, max_tokens);
+              const result = await processImageAttachment(zendeskClient, attachment, contextualPrompt, max_tokens, IMAGE_ANALYSIS_SYSTEM_PROMPT);
               analyses.push(result);
             }
 
