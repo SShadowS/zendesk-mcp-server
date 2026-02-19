@@ -18,6 +18,18 @@ const asyncLocalStorage = new AsyncLocalStorage();
 // Map of session ID -> ZendeskClient instance (for storage)
 const sessionClients = new Map();
 
+// Default client for stdio mode (no AsyncLocalStorage context)
+let defaultClient = null;
+
+/**
+ * Set the default Zendesk client (used in stdio mode where AsyncLocalStorage
+ * context is not available)
+ * @param {ZendeskClient} client - Zendesk client instance
+ */
+export function setDefaultZendeskClient(client) {
+  defaultClient = client;
+}
+
 /**
  * Store Zendesk client for a session
  * @param {string} sessionId - Session identifier
@@ -43,19 +55,23 @@ export function runInContext(sessionId, fn) {
  * @throws {Error} If no context or client found
  */
 export function getZendeskClient() {
+  // Try AsyncLocalStorage context first (HTTP mode)
   const store = asyncLocalStorage.getStore();
 
-  if (!store || !store.sessionId) {
-    throw new Error('No session context available. This tool must be called through the MCP server.');
+  if (store && store.sessionId) {
+    const client = sessionClients.get(store.sessionId);
+    if (!client) {
+      throw new Error(`No Zendesk client found for session ${store.sessionId}. This should not happen - please report this bug.`);
+    }
+    return client;
   }
 
-  const client = sessionClients.get(store.sessionId);
-
-  if (!client) {
-    throw new Error(`No Zendesk client found for session ${store.sessionId}. This should not happen - please report this bug.`);
+  // Fall back to default client (stdio mode)
+  if (defaultClient) {
+    return defaultClient;
   }
 
-  return client;
+  throw new Error('No session context available. This tool must be called through the MCP server.');
 }
 
 /**

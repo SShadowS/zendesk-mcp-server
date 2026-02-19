@@ -7,8 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a Model Context Protocol (MCP) server that provides comprehensive access to the Zendesk API. It implements tools for managing tickets, users, organizations, and other Zendesk resources through a standardized MCP interface.
 
 **Key Features:**
-- OAuth 2.1 authentication with PKCE for secure access
-- HTTP-based server using Streamable HTTP transport
+- **Dual-mode transport**: Stdio (API token) and HTTP (OAuth 2.1) with auto-detection
+- OAuth 2.1 authentication with PKCE for secure access (HTTP mode)
+- API token authentication for simple deployments (stdio mode)
 - Per-session Zendesk clients with automatic token management
 - Comprehensive retry logic with exponential backoff
 - AI-powered document and image analysis with ticket-context-aware prompts
@@ -16,7 +17,7 @@ This is a Model Context Protocol (MCP) server that provides comprehensive access
 ## Commands
 
 ### Development
-- `npm start` - Start the HTTP server with OAuth support
+- `npm start` - Start the server (auto-detects stdio or HTTP mode from env vars)
 - `npm run dev` - Start the server with auto-restart on file changes
 - `npm run inspect` - Launch the MCP Inspector to test server functionality
 - `node test-oauth-flow.js` - Test OAuth authorization flow
@@ -43,6 +44,7 @@ Tests are in `tests/` mirroring the `src/` directory structure:
 - `tests/config/document-types.test.js` - Document type validation tests
 - `tests/utils/document-handler.test.js` - Document handler routing tests
 - `tests/zendesk-client/tickets.test.js` - Zendesk client ticket methods tests
+- `tests/zendesk-client/base-auth.test.js` - API token auth and dual-mode getAuthHeader tests
 
 Integration tests require `.env` credentials and are automatically skipped when credentials are missing.
 
@@ -52,8 +54,12 @@ Integration tests require `.env` credentials and are automatically skipped when 
 
 1. **Entry Point** (`src/index.js`):
    - Loads environment variables with dotenv
-   - Starts HTTP server with OAuth support
-   - No longer uses stdio transport (migrated to HTTP)
+   - **Auto-detects transport mode** based on environment variables:
+     - `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN` → stdio mode (API token auth)
+     - `ZENDESK_OAUTH_CLIENT_ID` → HTTP mode (OAuth 2.1)
+     - Neither → prints usage instructions and exits
+   - Stdio mode: creates ZendeskClient with API token, sets as default client, connects via StdioServerTransport
+   - HTTP mode: delegates to `startHttpServer()`
 
 2. **HTTP Server** (`src/http-server.js`):
    - Express server with Streamable HTTP transport
@@ -82,17 +88,21 @@ Integration tests require `.env` credentials and are automatically skipped when 
    - Provides documentation resources via `zendesk://docs/{section}` URIs
    - Connection test removed (requires OAuth tokens per-session)
 
-6. **Zendesk Client** (`src/zendesk-client.js`):
-   - **OAuth-only authentication** (API tokens no longer supported)
-   - Per-session client instances (not singleton)
-   - Methods: `setAccessToken()`, `clearAccessToken()`, `isTokenExpired()`
+6. **Zendesk Client** (`src/zendesk-client/`):
+   - **Dual-mode authentication**: OAuth Bearer tokens and API token (Basic auth)
+   - Per-session client instances in HTTP mode, singleton default client in stdio mode
+   - Methods: `setAccessToken()`, `setApiTokenAuth()`, `clearAccessToken()`, `isTokenExpired()`
+   - `getAuthHeader()` returns `Bearer` or `Basic` header based on `_authMode`
    - Provides methods for all Zendesk resources
    - Includes retry logic with exponential backoff
    - 60-second timeout for API requests
+   - All debug logging uses `console.error` (safe for stdio mode where stdout = MCP transport)
 
 7. **Request Context** (`src/request-context.js`):
-   - Uses AsyncLocalStorage for per-session context
-   - Tools call `getZendeskClient()` to access session's client
+   - Uses AsyncLocalStorage for per-session context (HTTP mode)
+   - Falls back to default client when no AsyncLocalStorage context (stdio mode)
+   - `setDefaultZendeskClient(client)` — sets the fallback client for stdio mode
+   - Tools call `getZendeskClient()` to access the correct client in either mode
    - Eliminates need to pass session IDs through MCP protocol
    - Automatic cleanup on session close
 
@@ -144,7 +154,27 @@ Only 10 essential tools are registered to reduce context usage:
 
 To modify the lite mode tool list, edit `LITE_MODE_TOOLS` in `src/config/tool-modes.js`.
 
-### OAuth 2.1 Authentication Flow
+### Stdio + API Token Authentication (Mode A)
+
+For MCP clients that connect via stdio (e.g., Claude Code, Cursor):
+
+**Environment Variables Required:**
+```bash
+ZENDESK_SUBDOMAIN=your-subdomain
+ZENDESK_EMAIL=user@example.com
+ZENDESK_API_TOKEN=your-api-token
+```
+
+**How it works:**
+1. `src/index.js` detects `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN` → enters stdio mode
+2. Creates a `ZendeskClient`, calls `setApiTokenAuth()` → sets Basic auth header
+3. Calls `setDefaultZendeskClient(client)` so all tools can access it
+4. Connects MCP server via `StdioServerTransport` (stdin/stdout)
+5. All logging uses `console.error` (stdout is reserved for MCP protocol)
+
+**Stdio logging constraint:** Any code loaded in stdio mode must never write to `console.log`. Use `console.error` for all diagnostic output. Files already fixed: `src/zendesk-client/base.js`, `src/config/tool-modes.js`.
+
+### OAuth 2.1 Authentication Flow (Mode B)
 
 The server uses OAuth 2.1 with PKCE for secure authentication:
 
@@ -297,19 +327,18 @@ The server includes comprehensive error handling:
 
 ## MCP Integration
 
-This server is designed to be used with MCP clients over HTTP. It provides:
+This server supports two transport modes, auto-detected from environment variables:
 
 **Transport:**
-- Streamable HTTP transport (SDK 1.20.0+)
-- Supports GET (SSE stream), POST (requests), DELETE (cleanup)
-- Session-based architecture with per-session state
-- Compatible with HTTP-based MCP clients
+- **Stdio mode**: StdioServerTransport for CLI-based MCP clients (Claude Code, Cursor)
+- **HTTP mode**: Streamable HTTP transport (SDK 1.20.0+) with SSE support
+- Session-based architecture with per-session state (HTTP) or singleton client (stdio)
 
 **Authentication:**
-- Bearer token authentication required
-- OAuth 2.1 flow for secure token acquisition
-- Automatic token management and refresh
-- RFC 9728 protected resource metadata
+- **Stdio mode**: API token (Basic auth) — `ZENDESK_EMAIL` + `ZENDESK_API_TOKEN`
+- **HTTP mode**: OAuth 2.1 with PKCE — Bearer token authentication
+- Automatic token management and refresh (HTTP mode)
+- RFC 9728 protected resource metadata (HTTP mode)
 
 **Features:**
 - Tools for CRUD operations on all major Zendesk resources

@@ -11,6 +11,9 @@ class ZendeskClientBase {
     this.debug = process.env.ZENDESK_DEBUG === 'true';
     this.accessToken = null;
     this.tokenExpiry = null;
+    this._email = null;
+    this._apiToken = null;
+    this._authMode = null; // 'oauth' | 'api_token' | null
   }
 
   /**
@@ -21,12 +24,28 @@ class ZendeskClientBase {
   setAccessToken(token, expiresAt = null) {
     this.accessToken = token;
     this.tokenExpiry = expiresAt;
+    this._authMode = 'oauth';
 
     if (this.debug) {
-      console.log('[ZendeskClient] OAuth token set', {
+      console.error('[ZendeskClient] OAuth token set', {
         hasToken: !!token,
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : 'unknown'
       });
+    }
+  }
+
+  /**
+   * Set API token credentials for authentication
+   * @param {string} email - Zendesk user email
+   * @param {string} apiToken - Zendesk API token
+   */
+  setApiTokenAuth(email, apiToken) {
+    this._email = email;
+    this._apiToken = apiToken;
+    this._authMode = 'api_token';
+
+    if (this.debug) {
+      console.error('[ZendeskClient] API token auth set', { email });
     }
   }
 
@@ -38,7 +57,7 @@ class ZendeskClientBase {
     this.tokenExpiry = null;
 
     if (this.debug) {
-      console.log('[ZendeskClient] OAuth token cleared');
+      console.error('[ZendeskClient] OAuth token cleared');
     }
   }
 
@@ -84,10 +103,22 @@ class ZendeskClientBase {
   }
 
   /**
-   * Get authorization header (OAuth Bearer token required)
+   * Get authorization header based on auth mode
    * @returns {string} Authorization header value
    */
   getAuthHeader() {
+    if (this._authMode === 'api_token') {
+      if (!this._email || !this._apiToken) {
+        throw new ZendeskAuthError(
+          'API token credentials not configured. Set email and API token.',
+          401,
+          null
+        );
+      }
+      const encoded = Buffer.from(`${this._email}/token:${this._apiToken}`).toString('base64');
+      return `Basic ${encoded}`;
+    }
+
     if (this.accessToken && !this.isTokenExpired()) {
       return `Bearer ${this.accessToken}`;
     }
@@ -115,10 +146,10 @@ class ZendeskClientBase {
     };
 
     if (this.debug) {
-      console.log(`[Zendesk API] ${method} ${endpoint}`, {
+      console.error(`[Zendesk API] ${method} ${endpoint}`, {
         hasData: !!data,
         hasParams: !!params,
-        authType: 'OAuth Bearer'
+        authType: this._authMode || 'unknown'
       });
     }
 
@@ -136,7 +167,7 @@ class ZendeskClientBase {
           const axiosResponse = await axios(requestConfig);
 
           if (this.debug) {
-            console.log(`[Zendesk API] Success: ${method} ${endpoint}`, {
+            console.error(`[Zendesk API] Success: ${method} ${endpoint}`, {
               status: axiosResponse.status,
               hasData: !!axiosResponse.data
             });

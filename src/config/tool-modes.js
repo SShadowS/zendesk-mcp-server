@@ -59,9 +59,9 @@ export function logToolModeInfo(toolCount) {
   const mode = getToolMode();
 
   if (mode === 'lite') {
-    console.log(`[Tool Mode] LITE mode enabled - ${toolCount} tools registered`);
-    console.log(`[Tool Mode] Available tools: ${LITE_MODE_TOOLS.join(', ')}`);
+    console.error(`[Tool Mode] LITE mode enabled - ${toolCount} tools registered`);
+    console.error(`[Tool Mode] Available tools: ${LITE_MODE_TOOLS.join(', ')}`);
   } else {
-    console.log(`[Tool Mode] FULL mode - ${toolCount} tools registered`);
+    console.error(`[Tool Mode] FULL mode - ${toolCount} tools registered`);
   }
 }
