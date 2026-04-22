@@ -27,6 +27,8 @@ This is a Model Context Protocol (MCP) server that provides comprehensive access
 
 ### Testing
 - `npm test` - Run all unit and integration tests with vitest
+- `npm run test:unit` - Run unit tests only (fast, ~1s, no external APIs)
+- `npm run test:integration` - Run integration tests only (real Zendesk + Anthropic APIs, ~3min)
 - `npm run test:watch` - Run tests in watch mode during development
 - Visit `http://localhost:3030/oauth/authorize` to start OAuth flow
 - Visit `http://localhost:3030/health` to check server health
