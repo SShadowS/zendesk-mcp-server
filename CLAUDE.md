@@ -50,6 +50,12 @@ Tests are in `tests/` mirroring the `src/` directory structure:
 
 Integration tests require `.env` credentials and are automatically skipped when credentials are missing.
 
+### Release
+- `npm version <patch|minor|major> && git push --follow-tags` — bumps `package.json`, tags, and pushes; the `.github/workflows/release.yml` workflow then publishes to npm and creates a GitHub Release.
+- Prerelease tags (`v1.2.0-beta.0`) auto-publish under the matching npm dist-tag (`beta`); clean semver tags publish to `latest`.
+- CI runs `npm run test:unit` only (integration tests need real Zendesk + Anthropic credentials).
+- npm publish uses **trusted publishing** (OIDC) — no `NPM_TOKEN` secret. Trusted publisher config lives on npmjs.com and must reference workflow filename `release.yml`.
+
 ## Architecture
 
 ### Core Components
