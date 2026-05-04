@@ -298,6 +298,15 @@ export const toolsArray = [
 - AsyncLocalStorage automatically provides correct client for current request
 - No need to pass session IDs or modify handler signatures
 
+### Named Custom Fields
+
+Zendesk custom fields are exposed under MCP-friendly names via a generated schema:
+- **Add a field**: append an entry to `src/config/custom-fields.js` with `{id, zendeskType, title, description}`. Supported `zendeskType`: text, textarea, regexp, partialcreditcard, tagger, checkbox, integer, decimal, date, multiselect.
+- **Schema is generated** in `src/utils/custom-fields.js` (`buildNamedCustomFieldsSchema`); `create_ticket` and `update_ticket` auto-expose `named_custom_fields.<name>` typed per `zendeskType`.
+- **`get_ticket` enriches** the response with `ticket.named_custom_fields` alongside raw `custom_fields`.
+- **Raw escape hatch**: callers may still pass `custom_fields: [{id, value}]`. Merge rejects on conflict (same id, different value). `null` on update clears the value.
+- **No client helper exists** for `/api/v2/ticket_fields.json` — ad-hoc Node + `.env` Basic auth is the way to discover field ids.
+
 ### Error Handling
 
 The server includes comprehensive error handling:

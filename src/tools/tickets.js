@@ -6,7 +6,17 @@ import axios from 'axios';
 import { getZendeskClient } from '../request-context.js';
 import { createErrorResponse } from '../utils/errors.js';
 import { buildTicketContext } from '../utils/ticket-context.js';
+import {
+  buildNamedCustomFieldsSchema,
+  buildCustomFieldsPayload,
+  enrichTicketResponse
+} from '../utils/custom-fields.js';
 import Anthropic from '@anthropic-ai/sdk';
+
+const customFieldEntrySchema = z.object({
+  id: z.number(),
+  value: z.unknown()
+});
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -234,7 +244,7 @@ export const ticketsTools = [
       },
       {
         name: "get_ticket",
-        description: "Get a specific ticket by ID with optional comments",
+        description: "Get a specific ticket by ID with optional comments. Response includes named_custom_fields for known fields (e.g. ado_work_item_id).",
         schema: z.object({
           id: z.number().describe("Ticket ID"),
           include_comments: z.boolean().optional().describe("Include ticket comments in response (default: false)")
@@ -244,9 +254,9 @@ export const ticketsTools = [
             const zendeskClient = getZendeskClient();
             const result = await zendeskClient.getTicket(id, include_comments);
             return {
-              content: [{ 
-                type: "text", 
-                text: JSON.stringify(result, null, 2)
+              content: [{
+                type: "text",
+                text: JSON.stringify(enrichTicketResponse(result), null, 2)
               }]
             };
           } catch (error) {
@@ -256,7 +266,7 @@ export const ticketsTools = [
       },
       {
         name: "create_ticket",
-        description: "Create a new ticket",
+        description: "Create a new ticket. Supports named_custom_fields (e.g. ado_work_item_id) and raw custom_fields.",
         schema: z.object({
           subject: z.string().describe("Ticket subject"),
           comment: z.string().describe("Ticket comment/description"),
@@ -266,11 +276,14 @@ export const ticketsTools = [
           assignee_id: z.number().optional().describe("User ID of the assignee"),
           group_id: z.number().optional().describe("Group ID for the ticket"),
           type: z.enum(["problem", "incident", "question", "task"]).optional().describe("Ticket type"),
-          tags: z.array(z.string()).optional().describe("Tags for the ticket")
+          tags: z.array(z.string()).optional().describe("Tags for the ticket"),
+          custom_fields: z.array(customFieldEntrySchema).optional().describe("Raw Zendesk custom_fields entries ({id, value}). Escape hatch for fields not in the named map."),
+          named_custom_fields: buildNamedCustomFieldsSchema()
         }),
-        handler: async ({ subject, comment, priority, status, requester_id, assignee_id, group_id, type, tags }) => {
+        handler: async ({ subject, comment, priority, status, requester_id, assignee_id, group_id, type, tags, custom_fields, named_custom_fields }) => {
           try {
             const zendeskClient = getZendeskClient();
+            const mergedCustomFields = buildCustomFieldsPayload({ custom_fields, named_custom_fields });
             const ticketData = {
               subject,
               comment: { body: comment },
@@ -282,12 +295,13 @@ export const ticketsTools = [
               type,
               tags
             };
-            
+            if (mergedCustomFields !== undefined) ticketData.custom_fields = mergedCustomFields;
+
             const result = await zendeskClient.createTicket(ticketData);
             return {
-              content: [{ 
-                type: "text", 
-                text: `Ticket created successfully!\n\n${JSON.stringify(result, null, 2)}`
+              content: [{
+                type: "text",
+                text: `Ticket created successfully!\n\n${JSON.stringify(enrichTicketResponse(result), null, 2)}`
               }]
             };
           } catch (error) {
@@ -297,7 +311,7 @@ export const ticketsTools = [
       },
       {
         name: "update_ticket",
-        description: "Update an existing ticket",
+        description: "Update an existing ticket. Supports named_custom_fields (e.g. ado_work_item_id, pass null to clear) and raw custom_fields.",
         schema: z.object({
           id: z.number().describe("Ticket ID to update"),
           subject: z.string().optional().describe("Updated ticket subject"),
@@ -307,13 +321,15 @@ export const ticketsTools = [
           assignee_id: z.number().optional().describe("User ID of the new assignee"),
           group_id: z.number().optional().describe("New group ID for the ticket"),
           type: z.enum(["problem", "incident", "question", "task"]).optional().describe("Updated ticket type"),
-          tags: z.array(z.string()).optional().describe("Updated tags for the ticket")
+          tags: z.array(z.string()).optional().describe("Updated tags for the ticket"),
+          custom_fields: z.array(customFieldEntrySchema).optional().describe("Raw Zendesk custom_fields entries ({id, value}). Escape hatch for fields not in the named map."),
+          named_custom_fields: buildNamedCustomFieldsSchema()
         }),
-        handler: async ({ id, subject, comment, priority, status, assignee_id, group_id, type, tags }) => {
+        handler: async ({ id, subject, comment, priority, status, assignee_id, group_id, type, tags, custom_fields, named_custom_fields }) => {
           try {
             const zendeskClient = getZendeskClient();
             const ticketData = {};
-            
+
             if (subject !== undefined) ticketData.subject = subject;
             if (comment !== undefined) ticketData.comment = { body: comment };
             if (priority !== undefined) ticketData.priority = priority;
@@ -322,12 +338,15 @@ export const ticketsTools = [
             if (group_id !== undefined) ticketData.group_id = group_id;
             if (type !== undefined) ticketData.type = type;
             if (tags !== undefined) ticketData.tags = tags;
-            
+
+            const mergedCustomFields = buildCustomFieldsPayload({ custom_fields, named_custom_fields });
+            if (mergedCustomFields !== undefined) ticketData.custom_fields = mergedCustomFields;
+
             const result = await zendeskClient.updateTicket(id, ticketData);
             return {
-              content: [{ 
-                type: "text", 
-                text: `Ticket updated successfully!\n\n${JSON.stringify(result, null, 2)}`
+              content: [{
+                type: "text",
+                text: `Ticket updated successfully!\n\n${JSON.stringify(enrichTicketResponse(result), null, 2)}`
               }]
             };
           } catch (error) {
