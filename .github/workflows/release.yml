@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME (version $TAG_VERSION) does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+          echo "Version verified: $PKG_VERSION"
+
+      - name: Determine npm dist-tag
+        id: dist_tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "$VERSION" =~ - ]]; then
+            PRE_LABEL="${VERSION#*-}"
+            PRE_LABEL="${PRE_LABEL%%.*}"
+            echo "tag=$PRE_LABEL" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm (trusted publishing)
+        run: npm publish --access public --provenance --tag "${{ steps.dist_tag.outputs.tag }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PRERELEASE_FLAG=""
+          if [ "${{ steps.dist_tag.outputs.prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            $PRERELEASE_FLAG
