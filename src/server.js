@@ -71,13 +71,23 @@ function createServer() {
     description: "MCP Server for interacting with the Zendesk API"
   });
 
-  // Register tools
+  // Register tools.
+  //
+  // Use registerTool() (config-object API) rather than the legacy positional
+  // tool(name, schema, handler, {description}) form. In @modelcontextprotocol/sdk
+  // >= 1.24, the legacy form's overload dispatcher only accepts a raw shape
+  // ({key: ZodType}); a `z.object({...})` instance is silently treated as
+  // annotations, leaving inputSchema undefined and producing empty
+  // {"properties":{}} schemas to MCP clients. registerTool normalizes both
+  // raw shapes and ZodObject instances correctly.
   toolsToRegister.forEach(tool => {
-    server.tool(
+    server.registerTool(
       tool.name,
-      tool.schema,
-      tool.handler,
-      { description: tool.description }
+      {
+        description: tool.description,
+        inputSchema: tool.schema.shape
+      },
+      tool.handler
     );
   });
 
