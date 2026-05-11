@@ -20,28 +20,31 @@ export const supportTools = [
         const zendeskClient = getZendeskClient();
         const { subdomain } = zendeskClient.getCredentials();
 
-        const [me, settings, brands, forms] = await Promise.all([
-          settle(zendeskClient, 'GET', '/users/me.json'),
+        // Auth/config failures on /users/me are fatal — propagate via
+        // createErrorResponse so clients see isError:true rather than a
+        // partial-success payload that hides expired tokens.
+        const meResponse = await zendeskClient.request('GET', '/users/me.json');
+
+        const [settings, brands, forms] = await Promise.all([
           settle(zendeskClient, 'GET', '/account/settings.json'),
           settle(zendeskClient, 'GET', '/brands.json'),
           settle(zendeskClient, 'GET', '/ticket_forms.json')
         ]);
 
+        const meUser = meResponse?.user || {};
         const info = {
           subdomain: subdomain || null,
-          user: me.ok && me.value?.user
-            ? {
-                id: me.value.user.id,
-                name: me.value.user.name,
-                email: me.value.user.email,
-                role: me.value.user.role,
-                locale: me.value.user.locale,
-                time_zone: me.value.user.time_zone,
-                organization_id: me.value.user.organization_id,
-                default_group_id: me.value.user.default_group_id,
-                two_factor_auth_enabled: me.value.user.two_factor_auth_enabled
-              }
-            : { error: me.error || 'unavailable' },
+          user: {
+            id: meUser.id,
+            name: meUser.name,
+            email: meUser.email,
+            role: meUser.role,
+            locale: meUser.locale,
+            time_zone: meUser.time_zone,
+            organization_id: meUser.organization_id,
+            default_group_id: meUser.default_group_id,
+            two_factor_auth_enabled: meUser.two_factor_auth_enabled
+          },
           account_settings: settings.ok ? (settings.value?.settings ?? null) : { error: settings.error },
           brands: brands.ok && Array.isArray(brands.value?.brands)
             ? brands.value.brands.map(b => ({

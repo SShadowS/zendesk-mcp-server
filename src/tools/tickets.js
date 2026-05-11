@@ -330,6 +330,7 @@ export const ticketsTools = [
           try {
             const zendeskClient = getZendeskClient();
             const ticketData = {};
+            let macroFieldsArray;
 
             if (macro_id !== undefined) {
               const macroResult = await zendeskClient.applyMacro(id, macro_id);
@@ -337,12 +338,15 @@ export const ticketsTools = [
               const { fields: macroFields, ...macroTicketRest } = macroTicket;
               Object.assign(ticketData, macroTicketRest);
               if (Array.isArray(macroFields)) {
-                ticketData.custom_fields = macroFields;
+                macroFieldsArray = macroFields;
               }
               const macroComment = macroResult?.result?.comment;
               if (macroComment) {
                 ticketData.comment = macroComment;
               }
+              // Forward macro_id on the PUT so Zendesk records the macro
+              // application server-side (audit trail / true apply semantics).
+              ticketData.macro_id = macro_id;
             }
 
             if (subject !== undefined) ticketData.subject = subject;
@@ -354,8 +358,21 @@ export const ticketsTools = [
             if (type !== undefined) ticketData.type = type;
             if (tags !== undefined) ticketData.tags = tags;
 
-            const mergedCustomFields = buildCustomFieldsPayload({ custom_fields, named_custom_fields });
-            if (mergedCustomFields !== undefined) ticketData.custom_fields = mergedCustomFields;
+            const callerCustomFields = buildCustomFieldsPayload({ custom_fields, named_custom_fields });
+            if (macroFieldsArray !== undefined || callerCustomFields !== undefined) {
+              const byId = new Map();
+              if (Array.isArray(macroFieldsArray)) {
+                for (const f of macroFieldsArray) {
+                  if (f && f.id !== undefined) byId.set(f.id, f);
+                }
+              }
+              if (Array.isArray(callerCustomFields)) {
+                for (const f of callerCustomFields) {
+                  if (f && f.id !== undefined) byId.set(f.id, f);
+                }
+              }
+              ticketData.custom_fields = Array.from(byId.values());
+            }
 
             const result = await zendeskClient.updateTicket(id, ticketData);
             return {
