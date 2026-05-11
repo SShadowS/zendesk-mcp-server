@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const automationsTools = [
       {
         name: "list_automations",
-        description: "List automations in Zendesk",
+        description: "List ALL automations (time-based rules that run hourly — e.g. closing pending tickets after 7 days). Unlike triggers, automations fire on a schedule, not on events. Use this to audit existing time-based workflows.",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of automations per page (max 100)")
@@ -28,7 +28,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "get_automation",
-        description: "Get a specific automation by ID",
+        description: "Fetch one automation's definition by numeric ID, including its conditions and actions array.",
         schema: z.object({
           id: z.number().describe("Automation ID")
         }),
@@ -49,7 +49,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "create_automation",
-        description: "Create a new automation",
+        description: "Create a new automation (runs hourly on tickets matching the conditions). Requires title, conditions, and actions. Conditions should include a time-based field (e.g. hours_since_update) — otherwise consider a trigger instead.",
         schema: z.object({
           title: z.string().describe("Automation title"),
           description: z.string().optional().describe("Automation description"),
@@ -94,7 +94,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_automation",
-        description: "Update an existing automation",
+        description: "Update an existing automation. Pass `conditions` and/or `actions` to replace those sections (not merge).",
         schema: z.object({
           id: z.number().describe("Automation ID to update"),
           title: z.string().optional().describe("Updated automation title"),
@@ -140,7 +140,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "delete_automation",
-        description: "Delete an automation",
+        description: "Delete an automation. Tickets previously modified by it are unaffected.",
         schema: z.object({
           id: z.number().describe("Automation ID to delete")
         }),

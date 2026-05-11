@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const helpCenterTools = [
       {
         name: "list_articles",
-        description: "List Help Center articles",
+        description: "List Help Center (knowledge-base) articles. To find articles by title/body/section, use `search` with `type:article title:<text>` instead — list_articles has no filtering parameters and the catalog can be large.",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of articles per page (max 100)"),
@@ -30,7 +30,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "get_article",
-        description: "Get a specific Help Center article by ID",
+        description: "Fetch one Help Center article by numeric ID, returning title, body (HTML), section_id, labels, and locale.",
         schema: z.object({
           id: z.number().describe("Article ID")
         }),
@@ -51,7 +51,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "create_article",
-        description: "Create a new Help Center article",
+        description: "Create a Help Center article in a specific section. Body accepts HTML. Specify `locale` if you support multiple languages (defaults to instance default).",
         schema: z.object({
           title: z.string().describe("Article title"),
           body: z.string().describe("Article body content (HTML)"),
@@ -89,7 +89,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_article",
-        description: "Update an existing Help Center article",
+        description: "Update an existing Help Center article's title, body, labels, or section. Pass only the fields you want to change.",
         schema: z.object({
           id: z.number().describe("Article ID to update"),
           title: z.string().optional().describe("Updated article title"),
@@ -127,7 +127,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "delete_article",
-        description: "Delete a Help Center article",
+        description: "Delete a Help Center article. Soft-deletable — Zendesk retains the record briefly for undo. Existing links to the article will 404.",
         schema: z.object({
           id: z.number().describe("Article ID to delete")
         }),

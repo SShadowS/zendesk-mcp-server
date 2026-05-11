@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const talkTools = [
       {
         name: "get_talk_stats",
-        description: "Get Zendesk Talk statistics",
+        description: "Return Zendesk Talk (voice) aggregate stats: total calls, average wait, abandoned rate, agent availability. Requires Zendesk Talk add-on. Returns the rolling window Zendesk publishes (typically last 30 days).",
         schema: z.object({}),
         handler: async () => {
           try {

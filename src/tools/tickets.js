@@ -219,12 +219,12 @@ function formatImageAnalysisResults(analyses, ticketId, includeInline, inlineCou
 export const ticketsTools = [
       {
         name: "list_tickets",
-        description: "List tickets in Zendesk",
+        description: "List ALL tickets in the Zendesk instance (no filtering). Has no parameters for filtering by recipient, assignee, requester, status, tags, or dates — for any filtered query use `search` instead with operators like `type:ticket recipient:<email>` or `type:ticket assignee:me status<solved`. Use `list_tickets` only when you genuinely want the full chronological feed across all queues (e.g. for a global activity report). Supports pagination and sorting.",
         schema: z.object({
-          page: z.number().optional().describe("Page number for pagination"),
-          per_page: z.number().optional().describe("Number of tickets per page (max 100)"),
-          sort_by: z.string().optional().describe("Field to sort by"),
-          sort_order: z.enum(["asc", "desc"]).optional().describe("Sort order (asc or desc)")
+          page: z.number().optional().describe("1-based page number. Defaults to 1."),
+          per_page: z.number().optional().describe("Tickets per page, max 100. Defaults to 100."),
+          sort_by: z.string().optional().describe("Sort field — `created_at`, `updated_at`, `priority`, `status`, `id`. Defaults to `id` (insertion order) when omitted."),
+          sort_order: z.enum(["asc", "desc"]).optional().describe("`desc` for newest-first, `asc` for oldest-first. Defaults to `asc`.")
         }),
         handler: async ({ page, per_page, sort_by, sort_order }) => {
           try {
@@ -244,10 +244,10 @@ export const ticketsTools = [
       },
       {
         name: "get_ticket",
-        description: "Get a specific ticket by ID with optional comments. Response includes named_custom_fields for known fields (e.g. ado_work_item_id).",
+        description: "Fetch one ticket by numeric ID, returning the full ticket object plus named_custom_fields (e.g. ado_work_item_id). Pass `include_comments:true` to also pull the comment thread inline (otherwise comments are omitted to save tokens — fetch them separately with `get_ticket_comments` if needed). If you have an email/subject/tag rather than an ID, use `search` first to find the ID.",
         schema: z.object({
-          id: z.number().describe("Ticket ID"),
-          include_comments: z.boolean().optional().describe("Include ticket comments in response (default: false)")
+          id: z.number().describe("Numeric ticket ID. To find one from email/subject/tag, use `search` first."),
+          include_comments: z.boolean().optional().describe("Include the full comment thread in the response. Default false to save tokens on large threads — set true when you need the conversation history.")
         }),
         handler: async ({ id, include_comments = false }) => {
           try {
@@ -377,12 +377,12 @@ export const ticketsTools = [
       },
       {
         name: "get_ticket_comments",
-        description: "Get comments for a specific ticket",
+        description: "List the comment thread for a ticket (both public replies and internal agent notes). Useful when you need conversation history but already used `get_ticket` without `include_comments:true`. Comments are paginated — large tickets may have 50+ comments across multiple pages.",
         schema: z.object({
-          id: z.number().describe("Ticket ID"),
-          page: z.number().optional().describe("Page number for pagination"),
-          per_page: z.number().optional().describe("Number of comments per page (max 100)"),
-          sort_order: z.enum(["asc", "desc"]).optional().describe("Sort order (asc or desc)")
+          id: z.number().describe("Ticket ID."),
+          page: z.number().optional().describe("1-based page number. Defaults to 1."),
+          per_page: z.number().optional().describe("Comments per page, max 100. Defaults to 100."),
+          sort_order: z.enum(["asc", "desc"]).optional().describe("`asc` for oldest-first (chronological reading), `desc` for newest-first. Defaults to `asc`.")
         }),
         handler: async ({ id, page, per_page, sort_order }) => {
           try {
@@ -402,7 +402,7 @@ export const ticketsTools = [
       },
       {
         name: "add_ticket_comment",
-        description: "Add a public or internal comment to an existing ticket",
+        description: "Append a comment to an existing ticket. Default visibility is `internal` (agent-only note) — pass `type:'public'` to send a reply visible to the requester. Use this rather than `update_ticket` when you only want to add a comment without changing other ticket fields.",
         schema: z.object({
           id: z.number().describe("Ticket ID"),
           body: z.string().describe("Comment body"),
@@ -432,7 +432,7 @@ export const ticketsTools = [
       },
       {
         name: "get_ticket_attachments",
-        description: "Get all attachments from a ticket's comments",
+        description: "List every attachment across a ticket's comment thread (files and inline images). Use this to discover what's attached before deciding to call `analyze_ticket_images` or `analyze_ticket_documents`. Each attachment includes content_type, size, filename, and a content_url for downloading.",
         schema: z.object({
           id: z.number().describe("Ticket ID")
         }),
