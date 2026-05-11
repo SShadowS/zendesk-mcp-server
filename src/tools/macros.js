@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const macrosTools = [
       {
         name: "list_macros",
-        description: "List ALL macros (predefined ticket actions agents can apply) accessible to the API user. Use this to discover macro IDs before applying one via `update_ticket` with a `macro_id` reference, or to inspect what canned responses your team has built.",
+        description: "List ALL macros (predefined ticket actions agents can apply) accessible to the API user. Use this to discover macro IDs and inspect what canned responses or ticket updates your team has built.",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of macros per page (max 100)")
