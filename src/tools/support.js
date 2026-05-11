@@ -7,7 +7,7 @@ import { createErrorResponse } from '../utils/errors.js';
       // Most Support functionality is covered by the other tool modules
       {
         name: "support_info",
-        description: "Return the authenticated agent's account context — current user identity, subdomain, role, brand, ticket form list, and instance config. Useful for confirming the identity you are authenticated as before running scoped queries like `assignee:me`.",
+        description: "Placeholder tool for surfacing Zendesk Support account/configuration metadata. Currently returns a static notice (no real account data yet) — the intended scope is the authenticated agent's identity, subdomain, role, brands, and ticket forms, but the handler is unimplemented as of v1.2.1.",
         schema: z.object({}),
         handler: async () => {
           try {

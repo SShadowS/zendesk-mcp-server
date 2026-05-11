@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const triggersTools = [
       {
         name: "list_triggers",
-        description: "List ALL triggers (event-driven automation rules that fire on ticket create/update). Use this to audit existing automations before adding new ones, or to discover trigger IDs for inspection.",
+        description: "List ALL triggers (event-driven rules that fire on ticket create/update). Use this to audit existing triggers before adding new ones, or to discover trigger IDs for inspection. For time-based rules use `list_automations` instead.",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of triggers per page (max 100)")

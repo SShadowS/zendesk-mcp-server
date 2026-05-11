@@ -87,7 +87,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_user",
-        description: "Update an existing user. Pass only the fields you want to change; omitted fields are preserved. Use `get_user` first to confirm the ID and current state. To clear a string field, pass an empty string; to clear `organization_id`, pass null.",
+        description: "Update an existing user. Pass only the fields you want to change; omitted fields are preserved. Use `get_user` first to confirm the ID and current state. Note: this tool's schema does not accept null for any optional field — to fully clear a value (e.g. `organization_id`) you'd need to hit Zendesk's PUT /api/v2/users/{id} endpoint directly with an explicit null. String fields can be cleared by passing an empty string.",
         schema: z.object({
           id: z.number().describe("User ID to update"),
           name: z.string().optional().describe("Updated user's name"),

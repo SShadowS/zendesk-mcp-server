@@ -49,7 +49,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "create_view",
-        description: "Create a new ticket view. Pass `all_conditions` and/or `any_conditions` to define the filter. Each condition is `{field, operator, value}` per Zendesk's view conditions schema.",
+        description: "Create a new ticket view. Pass `conditions` as an object with optional `all` and `any` arrays (Zendesk evaluates `all` as AND-logic, `any` as OR-logic). Each condition is `{field, operator, value}` per Zendesk's view conditions schema.",
         schema: z.object({
           title: z.string().describe("View title"),
           description: z.string().optional().describe("View description"),
@@ -89,7 +89,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_view",
-        description: "Update an existing view's title, conditions, or output columns. Use `get_view` first to retrieve and modify the current condition structure.",
+        description: "Update an existing view's title, description, or conditions (the fields this tool's schema exposes). Use `get_view` first to retrieve and modify the current condition structure. Note: output-column and group-by tweaks aren't supported by this tool's schema — for those, hit Zendesk's PUT /api/v2/views/{id} directly.",
         schema: z.object({
           id: z.number().describe("View ID to update"),
           title: z.string().optional().describe("Updated view title"),
