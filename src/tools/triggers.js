@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const triggersTools = [
       {
         name: "list_triggers",
-        description: "List triggers in Zendesk",
+        description: "List ALL triggers (event-driven automation rules that fire on ticket create/update). Use this to audit existing automations before adding new ones, or to discover trigger IDs for inspection.",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of triggers per page (max 100)")
@@ -28,7 +28,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "get_trigger",
-        description: "Get a specific trigger by ID",
+        description: "Fetch one trigger's definition by numeric ID, returning its conditions (all_conditions/any_conditions) and actions array.",
         schema: z.object({
           id: z.number().describe("Trigger ID")
         }),
@@ -49,7 +49,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "create_trigger",
-        description: "Create a new trigger",
+        description: "Create a new trigger. Requires title, conditions (when it fires), and actions (what it does). Triggers run on every ticket create/update — be conservative with conditions to avoid performance impact.",
         schema: z.object({
           title: z.string().describe("Trigger title"),
           description: z.string().optional().describe("Trigger description"),
@@ -94,7 +94,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_trigger",
-        description: "Update an existing trigger",
+        description: "Update an existing trigger. Pass `conditions` and/or `actions` to replace those sections (not merge).",
         schema: z.object({
           id: z.number().describe("Trigger ID to update"),
           title: z.string().optional().describe("Updated trigger title"),
@@ -140,7 +140,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "delete_trigger",
-        description: "Delete a trigger",
+        description: "Delete a trigger. Tickets previously modified by it are unaffected.",
         schema: z.object({
           id: z.number().describe("Trigger ID to delete")
         }),

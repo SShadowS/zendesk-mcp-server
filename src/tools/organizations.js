@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const organizationsTools = [
       {
         name: "list_organizations",
-        description: "List organizations in Zendesk",
+        description: "List ALL organizations in the Zendesk instance. No filter parameters — to find an organization by name, domain, external_id, or tag use `search` with `type:organization name:<name>` or `type:organization tags:<tag>`. Supports pagination.",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of organizations per page (max 100)")
@@ -28,7 +28,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "get_organization",
-        description: "Get a specific organization by ID",
+        description: "Fetch one organization by numeric ID, returning name, domain_names, tags, custom_fields, and notes. If you only have a name or domain, use `search` first to find the ID.",
         schema: z.object({
           id: z.number().describe("Organization ID")
         }),
@@ -49,7 +49,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "create_organization",
-        description: "Create a new organization",
+        description: "Create a new organization. Name must be unique within the instance. Use domain_names (array) to auto-associate end-users whose email domain matches.",
         schema: z.object({
           name: z.string().describe("Organization name"),
           domain_names: z.array(z.string()).optional().describe("Domain names for the organization"),
@@ -82,7 +82,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_organization",
-        description: "Update an existing organization",
+        description: "Update an existing organization. Pass only the fields you want to change. To clear domain_names or tags, pass an empty array.",
         schema: z.object({
           id: z.number().describe("Organization ID to update"),
           name: z.string().optional().describe("Updated organization name"),
@@ -116,7 +116,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "delete_organization",
-        description: "Delete an organization",
+        description: "Delete an organization. Associated users are not deleted but are unlinked from the org.",
         schema: z.object({
           id: z.number().describe("Organization ID to delete")
         }),

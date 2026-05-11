@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const groupsTools = [
       {
         name: "list_groups",
-        description: "List agent groups in Zendesk",
+        description: "List ALL agent groups (teams that own tickets) in the Zendesk instance. Each group has an ID used in ticket routing — use this when you need to discover group IDs for `update_ticket group_id:<id>` or `search type:ticket group:<id>`.",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of groups per page (max 100)")
@@ -28,7 +28,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "get_group",
-        description: "Get a specific group by ID",
+        description: "Fetch one agent group by numeric ID, returning name, description, and metadata.",
         schema: z.object({
           id: z.number().describe("Group ID")
         }),
@@ -49,7 +49,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "create_group",
-        description: "Create a new agent group",
+        description: "Create a new agent group. Group members are added separately via Zendesk's group_memberships endpoint (not exposed by this tool).",
         schema: z.object({
           name: z.string().describe("Group name"),
           description: z.string().optional().describe("Group description")
@@ -76,7 +76,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_group",
-        description: "Update an existing group",
+        description: "Update an existing group's name or description.",
         schema: z.object({
           id: z.number().describe("Group ID to update"),
           name: z.string().optional().describe("Updated group name"),
@@ -104,7 +104,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "delete_group",
-        description: "Delete a group",
+        description: "Delete an agent group. Tickets currently assigned to this group will be unassigned (group_id set to null).",
         schema: z.object({
           id: z.number().describe("Group ID to delete")
         }),

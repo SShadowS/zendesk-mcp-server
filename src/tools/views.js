@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const viewsTools = [
       {
         name: "list_views",
-        description: "List views in Zendesk",
+        description: "List ALL saved ticket views (filtered ticket lists agents use as dashboards) accessible to the API user. Use this to discover view IDs, then call Zendesk's `/api/v2/views/{id}/tickets` for the actual ticket list (this MCP doesn't yet expose execute_view; use `search` with the equivalent filters as a workaround).",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of views per page (max 100)")
@@ -28,7 +28,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "get_view",
-        description: "Get a specific view by ID",
+        description: "Fetch one view's definition by numeric ID, returning the filter conditions, title, and metadata. Useful for understanding how an agent's existing dashboard is built.",
         schema: z.object({
           id: z.number().describe("View ID")
         }),
@@ -49,7 +49,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "create_view",
-        description: "Create a new view",
+        description: "Create a new ticket view. Pass `all_conditions` and/or `any_conditions` to define the filter. Each condition is `{field, operator, value}` per Zendesk's view conditions schema.",
         schema: z.object({
           title: z.string().describe("View title"),
           description: z.string().optional().describe("View description"),
@@ -89,7 +89,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_view",
-        description: "Update an existing view",
+        description: "Update an existing view's title, conditions, or output columns. Use `get_view` first to retrieve and modify the current condition structure.",
         schema: z.object({
           id: z.number().describe("View ID to update"),
           title: z.string().optional().describe("Updated view title"),
@@ -130,7 +130,7 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "delete_view",
-        description: "Delete a view",
+        description: "Delete a saved view. Tickets are unaffected.",
         schema: z.object({
           id: z.number().describe("View ID to delete")
         }),

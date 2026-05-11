@@ -5,7 +5,7 @@ import { createErrorResponse } from '../utils/errors.js';
     export const chatTools = [
       {
         name: "list_chats",
-        description: "List Zendesk Chat conversations",
+        description: "List Zendesk Chat conversations (live chat transcripts), most recent first. Requires Zendesk Chat to be enabled on the account. Use this for end-of-day chat reviews or to find a recent chat by visitor name.",
         schema: z.object({
           page: z.number().optional().describe("Page number for pagination"),
           per_page: z.number().optional().describe("Number of chats per page (max 100)")
