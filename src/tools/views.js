@@ -2,6 +2,25 @@ import { z } from 'zod';
     import { getZendeskClient } from '../request-context.js';
 import { createErrorResponse } from '../utils/errors.js';
 
+const viewConditionSchema = z.object({
+  field: z.string().describe("Field to filter on"),
+  operator: z.string().describe("Operator for comparison"),
+  value: z.any().describe("Value to compare against")
+});
+
+const viewConditionsSchema = z.object({
+  all: z.array(viewConditionSchema).optional(),
+  any: z.array(viewConditionSchema).optional()
+});
+
+const viewOutputSchema = z.object({
+  columns: z.array(z.string()).optional().describe("Column identifiers shown in view results (e.g. 'subject','status','priority','assignee','requester','updated','satisfaction_score','custom_field_<id>')."),
+  group_by: z.string().optional().describe("Field to group rows by (e.g. 'status','priority','assignee','group'). Empty string to disable grouping."),
+  group_order: z.enum(["asc", "desc"]).optional().describe("Sort direction within groups."),
+  sort_by: z.string().optional().describe("Field to sort rows by."),
+  sort_order: z.enum(["asc", "desc"]).optional().describe("Sort direction.")
+});
+
     export const viewsTools = [
       {
         name: "list_views",
@@ -49,24 +68,14 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "create_view",
-        description: "Create a new ticket view. Pass `conditions` as an object with optional `all` and `any` arrays (Zendesk evaluates `all` as AND-logic, `any` as OR-logic). Each condition is `{field, operator, value}` per Zendesk's view conditions schema.",
+        description: "Create a new ticket view. Pass `conditions` as an object with optional `all` and `any` arrays (Zendesk evaluates `all` as AND-logic, `any` as OR-logic). Each condition is `{field, operator, value}` per Zendesk's view conditions schema. Use `output` to control which columns appear, plus grouping and sort.",
         schema: z.object({
           title: z.string().describe("View title"),
           description: z.string().optional().describe("View description"),
-          conditions: z.object({
-            all: z.array(z.object({
-              field: z.string().describe("Field to filter on"),
-              operator: z.string().describe("Operator for comparison"),
-              value: z.any().describe("Value to compare against")
-            })).optional(),
-            any: z.array(z.object({
-              field: z.string().describe("Field to filter on"),
-              operator: z.string().describe("Operator for comparison"),
-              value: z.any().describe("Value to compare against")
-            })).optional()
-          }).describe("Conditions for the view")
+          conditions: viewConditionsSchema.describe("Conditions for the view"),
+          output: viewOutputSchema.optional().describe("Columns, grouping, and sort order for view results.")
         }),
-        handler: async ({ title, description, conditions }) => {
+        handler: async ({ title, description, conditions, output }) => {
           try {
             const zendeskClient = getZendeskClient();
             const viewData = {
@@ -74,7 +83,8 @@ import { createErrorResponse } from '../utils/errors.js';
               description,
               conditions
             };
-            
+            if (output !== undefined) viewData.output = output;
+
             const result = await zendeskClient.createView(viewData);
             return {
               content: [{ 
@@ -89,33 +99,24 @@ import { createErrorResponse } from '../utils/errors.js';
       },
       {
         name: "update_view",
-        description: "Update an existing view's title, description, or conditions (the fields this tool's schema exposes). Use `get_view` first to retrieve and modify the current condition structure. Note: output-column and group-by tweaks aren't supported by this tool's schema — for those, hit Zendesk's PUT /api/v2/views/{id} directly.",
+        description: "Update an existing view's title, description, conditions, and/or output (columns, grouping, sort). Use `get_view` first to retrieve and modify the current structure. Only fields you pass are changed — omitted fields are preserved.",
         schema: z.object({
           id: z.number().describe("View ID to update"),
           title: z.string().optional().describe("Updated view title"),
           description: z.string().optional().describe("Updated view description"),
-          conditions: z.object({
-            all: z.array(z.object({
-              field: z.string().describe("Field to filter on"),
-              operator: z.string().describe("Operator for comparison"),
-              value: z.any().describe("Value to compare against")
-            })).optional(),
-            any: z.array(z.object({
-              field: z.string().describe("Field to filter on"),
-              operator: z.string().describe("Operator for comparison"),
-              value: z.any().describe("Value to compare against")
-            })).optional()
-          }).optional().describe("Updated conditions")
+          conditions: viewConditionsSchema.optional().describe("Updated conditions"),
+          output: viewOutputSchema.optional().describe("Updated columns, grouping, and sort order.")
         }),
-        handler: async ({ id, title, description, conditions }) => {
+        handler: async ({ id, title, description, conditions, output }) => {
           try {
             const zendeskClient = getZendeskClient();
             const viewData = {};
-            
+
             if (title !== undefined) viewData.title = title;
             if (description !== undefined) viewData.description = description;
             if (conditions !== undefined) viewData.conditions = conditions;
-            
+            if (output !== undefined) viewData.output = output;
+
             const result = await zendeskClient.updateView(id, viewData);
             return {
               content: [{ 
