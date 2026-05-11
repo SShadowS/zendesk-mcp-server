@@ -27,6 +27,10 @@ export function TicketsMixin(Base) {
       return this.request('PUT', `/tickets/${id}.json`, { ticket: data });
     }
 
+    async applyMacro(ticketId, macroId) {
+      return this.request('GET', `/tickets/${ticketId}/macros/${macroId}/apply.json`);
+    }
+
     async deleteTicket(id) {
       return this.request('DELETE', `/tickets/${id}.json`);
     }

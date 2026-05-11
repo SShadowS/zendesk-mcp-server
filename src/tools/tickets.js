@@ -311,7 +311,7 @@ export const ticketsTools = [
       },
       {
         name: "update_ticket",
-        description: "Update an existing ticket. Supports named_custom_fields (e.g. ado_work_item_id, pass null to clear) and raw custom_fields.",
+        description: "Update an existing ticket. Supports named_custom_fields (e.g. ado_work_item_id, pass null to clear) and raw custom_fields. Pass `macro_id` to apply a macro's field changes and comment as part of the update — explicit fields you also pass will override the macro's values.",
         schema: z.object({
           id: z.number().describe("Ticket ID to update"),
           subject: z.string().optional().describe("Updated ticket subject"),
@@ -322,13 +322,28 @@ export const ticketsTools = [
           group_id: z.number().optional().describe("New group ID for the ticket"),
           type: z.enum(["problem", "incident", "question", "task"]).optional().describe("Updated ticket type"),
           tags: z.array(z.string()).optional().describe("Updated tags for the ticket"),
+          macro_id: z.number().optional().describe("Macro ID to apply to this ticket. The macro's field changes and comment are merged into this update; any fields you also pass explicitly override the macro's values."),
           custom_fields: z.array(customFieldEntrySchema).optional().describe("Raw Zendesk custom_fields entries ({id, value}). Escape hatch for fields not in the named map."),
           named_custom_fields: buildNamedCustomFieldsSchema()
         }),
-        handler: async ({ id, subject, comment, priority, status, assignee_id, group_id, type, tags, custom_fields, named_custom_fields }) => {
+        handler: async ({ id, subject, comment, priority, status, assignee_id, group_id, type, tags, macro_id, custom_fields, named_custom_fields }) => {
           try {
             const zendeskClient = getZendeskClient();
             const ticketData = {};
+
+            if (macro_id !== undefined) {
+              const macroResult = await zendeskClient.applyMacro(id, macro_id);
+              const macroTicket = macroResult?.result?.ticket || {};
+              const { fields: macroFields, ...macroTicketRest } = macroTicket;
+              Object.assign(ticketData, macroTicketRest);
+              if (Array.isArray(macroFields)) {
+                ticketData.custom_fields = macroFields;
+              }
+              const macroComment = macroResult?.result?.comment;
+              if (macroComment) {
+                ticketData.comment = macroComment;
+              }
+            }
 
             if (subject !== undefined) ticketData.subject = subject;
             if (comment !== undefined) ticketData.comment = { body: comment };
