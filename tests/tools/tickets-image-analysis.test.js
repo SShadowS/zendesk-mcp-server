@@ -982,4 +982,95 @@ describe('analyze_ticket_images tool', () => {
       expect(typeof result.content[0].text).toBe('string');
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Scoping: comment_id and attachment_ids
+  // -----------------------------------------------------------------------
+  describe('scoping by comment_id and attachment_ids', () => {
+    function scopedClient() {
+      const fromComment100 = makeAttachment({
+        id: 1, file_name: 'a.png', content_type: 'image/png', comment_id: 100, is_inline: false
+      });
+      const fromComment200 = makeAttachment({
+        id: 2, file_name: 'b.png', content_type: 'image/png', comment_id: 200, is_inline: false
+      });
+      const inlineComment200 = makeAttachment({
+        id: 'inline_200_0', file_name: 'c.png', content_type: 'image/png',
+        comment_id: 200, is_inline: true, content_url: 'https://example.com/c.png'
+      });
+      return createMockZendeskClient([fromComment100, fromComment200, inlineComment200]);
+    }
+
+    it('analyzes only images from the given comment_id', async () => {
+      const client = scopedClient();
+      mockGetZendeskClient.mockReturnValue(client);
+      mockAxios.mockResolvedValue({ data: Buffer.from('x'), headers: { 'content-type': 'image/png' } });
+      mockCreate.mockResolvedValue({ content: [{ text: 'Analysis' }] });
+
+      const result = await analyzeImagesTool.handler({ id: 1, comment_id: 200 });
+      const text = result.content[0].text;
+
+      // comment 200 has 2 images (b.png + inline c.png); comment 100's a.png excluded
+      expect(text).toContain('Found 2 image(s) in ticket 1');
+      expect(text).toContain('b.png');
+      expect(text).toContain('c.png');
+      expect(text).not.toContain('a.png');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('analyzes only the listed attachment_ids (mixed number + inline string id)', async () => {
+      const client = scopedClient();
+      mockGetZendeskClient.mockReturnValue(client);
+      mockAxios.mockResolvedValue({ data: Buffer.from('x'), headers: { 'content-type': 'image/png' } });
+      mockCreate.mockResolvedValue({ content: [{ text: 'Analysis' }] });
+
+      const result = await analyzeImagesTool.handler({ id: 1, attachment_ids: [1, 'inline_200_0'] });
+      const text = result.content[0].text;
+
+      expect(text).toContain('Found 2 image(s) in ticket 1');
+      expect(text).toContain('a.png');
+      expect(text).toContain('c.png');
+      expect(text).not.toContain('b.png');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('matches a numeric attachment id passed as a string', async () => {
+      const client = scopedClient();
+      mockGetZendeskClient.mockReturnValue(client);
+      mockCreate.mockResolvedValue({ content: [{ text: 'Analysis' }] });
+
+      const result = await analyzeImagesTool.handler({ id: 1, attachment_ids: ['2'] });
+      const text = result.content[0].text;
+
+      expect(text).toContain('Found 1 image(s) in ticket 1');
+      expect(text).toContain('b.png');
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('intersects comment_id and attachment_ids when both are given', async () => {
+      const client = scopedClient();
+      mockGetZendeskClient.mockReturnValue(client);
+      mockCreate.mockResolvedValue({ content: [{ text: 'Analysis' }] });
+
+      // id 1 is in comment 100, so scoping to comment 200 should exclude it
+      const result = await analyzeImagesTool.handler({ id: 1, comment_id: 200, attachment_ids: [1] });
+
+      expect(result.content[0].text).toBe(
+        'No matching images found for the given comment_id/attachment_ids in this ticket.'
+      );
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('returns scoped no-match message when comment_id matches nothing', async () => {
+      const client = scopedClient();
+      mockGetZendeskClient.mockReturnValue(client);
+
+      const result = await analyzeImagesTool.handler({ id: 1, comment_id: 999 });
+
+      expect(result.content[0].text).toBe(
+        'No matching images found for the given comment_id/attachment_ids in this ticket.'
+      );
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+  });
 });
