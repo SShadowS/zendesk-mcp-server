@@ -780,7 +780,7 @@ describe('analyze_ticket_images tool', () => {
   // max_tokens capping
   // -----------------------------------------------------------------------
   describe('max_tokens capping', () => {
-    it('caps max_tokens at 4096 when a higher value is provided', async () => {
+    it('caps max_tokens at 16000 when a higher value is provided', async () => {
       const attachment = makeAttachment();
       const client = createMockZendeskClient([attachment]);
       mockGetZendeskClient.mockReturnValue(client);
@@ -789,13 +789,13 @@ describe('analyze_ticket_images tool', () => {
         content: [{ text: 'Analysis' }]
       });
 
-      await analyzeImagesTool.handler({ id: 1, max_tokens: 8000 });
+      await analyzeImagesTool.handler({ id: 1, max_tokens: 20000 });
 
       const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.max_tokens).toBe(4096);
+      expect(callArgs.max_tokens).toBe(16000);
     });
 
-    it('uses provided max_tokens when it is below 4096', async () => {
+    it('uses provided max_tokens when it is below the cap', async () => {
       const attachment = makeAttachment();
       const client = createMockZendeskClient([attachment]);
       mockGetZendeskClient.mockReturnValue(client);
@@ -810,7 +810,7 @@ describe('analyze_ticket_images tool', () => {
       expect(callArgs.max_tokens).toBe(1024);
     });
 
-    it('uses default max_tokens of 4096 when not specified', async () => {
+    it('uses default max_tokens of 8192 when not specified', async () => {
       const attachment = makeAttachment();
       const client = createMockZendeskClient([attachment]);
       mockGetZendeskClient.mockReturnValue(client);
@@ -822,7 +822,7 @@ describe('analyze_ticket_images tool', () => {
       await analyzeImagesTool.handler({ id: 1 });
 
       const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.max_tokens).toBe(4096);
+      expect(callArgs.max_tokens).toBe(8192);
     });
   });
 

@@ -122,7 +122,7 @@ async function downloadImageData(zendeskClient, attachment) {
 async function analyzeImageWithClaude(base64Data, contentType, analysisPrompt, maxTokens, systemPrompt) {
   const requestParams = {
     model: "claude-sonnet-4-6",
-    max_tokens: Math.min(maxTokens, 4096),
+    max_tokens: Math.min(maxTokens, 16000),
     messages: [{
       role: "user",
       content: [
@@ -502,7 +502,7 @@ export const ticketsTools = [
         schema: z.object({
           id: z.number().describe("Ticket ID"),
           analysis_prompt: z.string().optional().describe("Custom analysis prompt (default: general image description)"),
-          max_tokens: z.number().optional().describe("Maximum tokens for response (default: 4096, max: 4096)"),
+          max_tokens: z.number().optional().describe("Maximum tokens for response (default: 8192, max: 16000)"),
           include_inline: z.boolean().optional().describe("Include inline images from comment HTML bodies (default: true)"),
           comment_id: z.number().optional().describe("Only analyze images from this comment/post. Get IDs via get_ticket_comments or get_ticket_attachments."),
           attachment_ids: z.array(z.union([z.number(), z.string()])).optional().describe("Only analyze these specific image ids. File attachment ids are numbers; inline image ids look like 'inline_<commentId>_<index>'. Discover ids via get_ticket_attachments.")
@@ -510,7 +510,7 @@ export const ticketsTools = [
         handler: async ({
           id,
           analysis_prompt,
-          max_tokens = 4096,
+          max_tokens = 8192,
           include_inline = true,
           comment_id,
           attachment_ids

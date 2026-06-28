@@ -250,7 +250,7 @@ describe('analyze_ticket_documents handler', () => {
       expect(mockCreate).toHaveBeenCalledTimes(1);
       const callArgs = mockCreate.mock.calls[0][0];
       expect(callArgs.model).toBe('claude-sonnet-4-6');
-      expect(callArgs.max_tokens).toBeLessThanOrEqual(4096);
+      expect(callArgs.max_tokens).toBeLessThanOrEqual(16000);
 
       // Zendesk client was used to download
       expect(client.downloadAttachment).toHaveBeenCalledWith(pdf.content_url);
@@ -339,7 +339,7 @@ describe('analyze_ticket_documents handler', () => {
       expect(hasContext).toBe(false);
     });
 
-    it('should respect max_tokens parameter (capped at 4096)', async () => {
+    it('should respect max_tokens parameter (capped at 16000)', async () => {
       const pdf = pdfAttachment();
       const client = createMockZendeskClient([pdf]);
       mockGetZendeskClient.mockReturnValue(client);
@@ -350,15 +350,15 @@ describe('analyze_ticket_documents handler', () => {
       expect(callArgs.max_tokens).toBe(2000);
     });
 
-    it('should cap max_tokens at 4096 when a higher value is given', async () => {
+    it('should cap max_tokens at 16000 when a higher value is given', async () => {
       const pdf = pdfAttachment();
       const client = createMockZendeskClient([pdf]);
       mockGetZendeskClient.mockReturnValue(client);
 
-      await analyzeDocsTool.handler({ id: 1, max_tokens: 8000 });
+      await analyzeDocsTool.handler({ id: 1, max_tokens: 20000 });
 
       const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.max_tokens).toBe(4096);
+      expect(callArgs.max_tokens).toBe(16000);
     });
   });
 
