@@ -215,7 +215,7 @@ async function analyzeDocument(attachment, downloadData, analysisPrompt, maxToke
   // Call Claude API
   const requestParams = {
     model: "claude-sonnet-4-6",
-    max_tokens: Math.min(maxTokens, 4096),
+    max_tokens: Math.min(maxTokens, 16000),
     messages
   };
 
@@ -308,7 +308,7 @@ export const documentAnalysisTools = [
     schema: z.object({
       id: z.number().describe("Ticket ID"),
       analysis_prompt: z.string().optional().describe("Custom prompt for document analysis"),
-      max_tokens: z.number().optional().describe("Maximum tokens for response (default: 4096)"),
+      max_tokens: z.number().optional().describe("Maximum tokens for response (default: 8192, max: 16000)"),
       include_images: z.boolean().optional().describe("Also analyze image attachments (default: true)"),
       document_types: z.array(z.string()).optional().describe("Filter specific document types to analyze"),
       quick_mode: z.boolean().optional().describe("Quick mode: analyze only first 3 documents (default: false)")
@@ -316,7 +316,7 @@ export const documentAnalysisTools = [
     handler: async ({
       id,
       analysis_prompt,
-      max_tokens = 4096,
+      max_tokens = 8192,
       include_images = true,
       document_types = null,
       quick_mode = false

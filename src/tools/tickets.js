@@ -51,14 +51,27 @@ If this is a screenshot of a UI, identify the application and the specific scree
  * @param {boolean} includeInline - Include inline images from HTML
  * @returns {Object} { imageAttachments, inlineCount, attachedCount }
  */
-async function fetchImageAttachments(zendeskClient, ticketId, includeInline) {
+async function fetchImageAttachments(zendeskClient, ticketId, includeInline, commentId, attachmentIds) {
   const attachmentsResult = await zendeskClient.getTicketAttachments(ticketId, {
     includeInlineImages: includeInline
   });
 
-  const imageAttachments = attachmentsResult.attachments.filter(att =>
+  let imageAttachments = attachmentsResult.attachments.filter(att =>
     att.content_type && att.content_type.startsWith('image/')
   );
+
+  // Optional scoping: restrict to a single comment (post)
+  if (commentId != null) {
+    imageAttachments = imageAttachments.filter(att => att.comment_id === commentId);
+  }
+
+  // Optional scoping: restrict to specific image ids. File attachment ids are
+  // numbers; inline ids are strings (`inline_<commentId>_<index>`), so compare
+  // as strings to allow callers to pass either form.
+  if (attachmentIds && attachmentIds.length > 0) {
+    const idSet = new Set(attachmentIds.map(String));
+    imageAttachments = imageAttachments.filter(att => idSet.has(String(att.id)));
+  }
 
   const inlineCount = imageAttachments.filter(a => a.is_inline).length;
   const attachedCount = imageAttachments.length - inlineCount;
@@ -109,7 +122,7 @@ async function downloadImageData(zendeskClient, attachment) {
 async function analyzeImageWithClaude(base64Data, contentType, analysisPrompt, maxTokens, systemPrompt) {
   const requestParams = {
     model: "claude-sonnet-4-6",
-    max_tokens: Math.min(maxTokens, 4096),
+    max_tokens: Math.min(maxTokens, 16000),
     messages: [{
       role: "user",
       content: [
@@ -485,18 +498,22 @@ export const ticketsTools = [
       },
       {
         name: "analyze_ticket_images",
-        description: "Download and analyze images from a ticket using AI vision with comprehensive analysis. Includes both file attachments and inline images embedded in comment bodies.",
+        description: "Download and analyze images from a ticket using AI vision with comprehensive analysis. Includes both file attachments and inline images embedded in comment bodies. Optionally scope to a single comment/post via comment_id, or to specific images via attachment_ids (discover ids with get_ticket_attachments).",
         schema: z.object({
           id: z.number().describe("Ticket ID"),
           analysis_prompt: z.string().optional().describe("Custom analysis prompt (default: general image description)"),
-          max_tokens: z.number().optional().describe("Maximum tokens for response (default: 4096, max: 4096)"),
-          include_inline: z.boolean().optional().describe("Include inline images from comment HTML bodies (default: true)")
+          max_tokens: z.number().optional().describe("Maximum tokens for response (default: 8192, max: 16000)"),
+          include_inline: z.boolean().optional().describe("Include inline images from comment HTML bodies (default: true)"),
+          comment_id: z.number().optional().describe("Only analyze images from this comment/post. Get IDs via get_ticket_comments or get_ticket_attachments."),
+          attachment_ids: z.array(z.union([z.number(), z.string()])).optional().describe("Only analyze these specific image ids. File attachment ids are numbers; inline image ids look like 'inline_<commentId>_<index>'. Discover ids via get_ticket_attachments.")
         }),
         handler: async ({
           id,
           analysis_prompt,
-          max_tokens = 4096,
-          include_inline = true
+          max_tokens = 8192,
+          include_inline = true,
+          comment_id,
+          attachment_ids
         }) => {
           try {
             const zendeskClient = getZendeskClient();
@@ -505,17 +522,22 @@ export const ticketsTools = [
             const { imageAttachments, inlineCount, attachedCount } = await fetchImageAttachments(
               zendeskClient,
               id,
-              include_inline
+              include_inline,
+              comment_id,
+              attachment_ids
             );
 
             // Handle no images found
             if (imageAttachments.length === 0) {
+              const scoped = comment_id != null || (attachment_ids && attachment_ids.length > 0);
               return {
                 content: [{
                   type: "text",
-                  text: include_inline
-                    ? "No image attachments or inline images found in this ticket."
-                    : "No image attachments found in this ticket."
+                  text: scoped
+                    ? "No matching images found for the given comment_id/attachment_ids in this ticket."
+                    : include_inline
+                      ? "No image attachments or inline images found in this ticket."
+                      : "No image attachments found in this ticket."
                 }]
               };
             }
