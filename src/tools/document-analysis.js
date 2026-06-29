@@ -304,7 +304,7 @@ function formatAnalysisResults(analyses, validation, ticketId, quickMode, docume
 export const documentAnalysisTools = [
   {
     name: "analyze_ticket_documents",
-    description: "Comprehensively analyze all document attachments from a ticket (PDF, DOCX, TXT, CSV, etc). v2.1 with truncation. Note: This may take 30-60 seconds for multiple documents.",
+    description: "Comprehensively analyze all document attachments from a ticket (PDF, DOCX, TXT, CSV, etc.) using AI. Long documents are truncated to fit the analysis budget. Note: this may take 30-60 seconds for multiple documents.",
     schema: z.object({
       id: z.number().describe("Ticket ID"),
       analysis_prompt: z.string().optional().describe("Custom prompt for document analysis"),
