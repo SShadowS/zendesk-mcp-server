@@ -497,6 +497,45 @@ export const ticketsTools = [
         }
       },
       {
+        name: "get_attachment_content",
+        description: "Fetch an attachment's ACTUAL content by its content_url (authenticated) and return it inline as a viewable image — so you can see the attachment itself, not just its metadata or an AI description. Get the content_url from get_ticket_attachments. Downloads via the Zendesk service account, so it works even when the raw content_url returns 403 to an unauthenticated fetch. Only image/* attachments are returned inline; for PDFs/office docs use analyze_ticket_documents.",
+        schema: z.object({
+          content_url: z.string().describe("The attachment's content_url from get_ticket_attachments (must be on your Zendesk subdomain)."),
+          max_bytes: z.number().int().positive().optional().describe("Refuse to return attachments larger than this many bytes (default: env ZENDESK_MAX_ATTACHMENT_BYTES, else 5242880 = 5 MiB). Guards against blowing up the context.")
+        }),
+        handler: async ({ content_url, max_bytes }) => {
+          try {
+            // SSRF guard: downloadAttachment sends the Zendesk auth header to whatever URL it is
+            // given, so only allow the configured Zendesk host — never an arbitrary origin.
+            const subdomain = process.env.ZENDESK_SUBDOMAIN;
+            let url;
+            try {
+              url = new URL(content_url);
+            } catch {
+              return { isError: true, content: [{ type: "text", text: `Invalid content_url: ${content_url}` }] };
+            }
+            if (url.protocol !== "https:" || url.hostname !== `${subdomain}.zendesk.com`) {
+              return { isError: true, content: [{ type: "text", text: `Refusing content_url ${url.href}: only https://${subdomain}.zendesk.com attachments are allowed.` }] };
+            }
+
+            const cap = max_bytes || Number(process.env.ZENDESK_MAX_ATTACHMENT_BYTES) || 5 * 1024 * 1024;
+            const zendeskClient = getZendeskClient();
+            const { data, contentType, size } = await zendeskClient.downloadAttachment(url.href);
+
+            if (size > cap) {
+              return { isError: true, content: [{ type: "text", text: `Attachment is ${size} bytes, over the ${cap}-byte limit. Raise max_bytes / ZENDESK_MAX_ATTACHMENT_BYTES, or use analyze_ticket_images.` }] };
+            }
+            if (!contentType.startsWith("image/")) {
+              return { isError: true, content: [{ type: "text", text: `Attachment content_type is "${contentType}", not an image. Only images are returned inline; use analyze_ticket_documents for documents.` }] };
+            }
+
+            return { content: [{ type: "image", data: Buffer.from(data).toString("base64"), mimeType: contentType }] };
+          } catch (error) {
+            return createErrorResponse(error);
+          }
+        }
+      },
+      {
         name: "analyze_ticket_images",
         description: "Download and analyze images from a ticket using AI vision with comprehensive analysis. Includes both file attachments and inline images embedded in comment bodies. Optionally scope to a single comment/post via comment_id, or to specific images via attachment_ids (discover ids with get_ticket_attachments).",
         schema: z.object({

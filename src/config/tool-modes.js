@@ -23,6 +23,7 @@ export const LITE_MODE_TOOLS = [
   'get_ticket_comments',
   'add_ticket_comment',
   'get_ticket_attachments',
+  'get_attachment_content',
   'analyze_ticket_images'
 ];
 
