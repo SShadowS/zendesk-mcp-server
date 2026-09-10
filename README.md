@@ -123,6 +123,7 @@ ZENDESK_OAUTH_REDIRECT_URI=http://localhost:3030/zendesk/oauth/callback
 ```bash
 MODE=full                    # 'full' (all 55 tools) or 'lite' (10 essential tools)
 READ_ONLY=false              # 'true' blocks every write except internal ticket notes
+READ_ONLY_STRICT=false       # 'true' also blocks internal notes, leaving no write path
 ANTHROPIC_API_KEY=sk-ant-... # Required for AI image/document analysis
 ZENDESK_DEBUG=false          # Enable debug logging
 ```
@@ -160,7 +161,25 @@ READ_ONLY=true npm start
 - Enforcement also sits in the HTTP client, which rejects any non-`GET` request other than an internal-note payload. A write cannot reach the Zendesk API by another route.
 - Composes with `MODE`. `MODE=lite READ_ONLY=true` still exposes all 10 lite tools, since only `add_ticket_comment` mutates and it survives.
 
-Recognized truthy values are `true` and `1` (case-insensitive); anything else, including unset, leaves the server writable.
+Recognized truthy values are `true` and `1` (case-insensitive); anything else, including unset, leaves the server writable. An unrecognized value is treated as `false` and logs a warning at startup, so a typo cannot silently reopen a write path.
+
+#### Strict read-only
+
+`READ_ONLY` still leaves one write path open: internal ticket notes. Where even that is unacceptable &mdash; for example a sidecar whose spec says only an orchestrator may write &mdash; add `READ_ONLY_STRICT=true`:
+
+```bash
+READ_ONLY=true READ_ONLY_STRICT=true npm start
+```
+
+- `add_ticket_comment` is unregistered, leaving 27 tools in `full` mode and 9 under `MODE=lite`.
+- The transport guard drops the internal-note exemption, so `request()` permits `GET` and nothing else. Both layers tighten together; unregistering the tool alone would be cosmetic, since anything holding the client object could still write.
+- Strict is defined as *the allowlist minus anything mutating*, so it stays correct as tools are added rather than depending on a list someone has to remember to update.
+
+Strict is a **separate boolean rather than a third value of `READ_ONLY`** on purpose. A single `READ_ONLY=true` is often shared across several MCP servers, and some treat an unrecognized value as `false` with only a warning &mdash; so `READ_ONLY=strict` would quietly make those servers writable.
+
+`READ_ONLY_STRICT=true` implies read-only even if `READ_ONLY` is unset or `false`. A server told to be strict must never come up writable.
+
+The active mode is logged at startup (`mode=OFF`, `mode=STANDARD`, or `mode=STRICT`).
 
 ## Available Tools
 
