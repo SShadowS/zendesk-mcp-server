@@ -2,19 +2,71 @@
  * Read-only mode configuration
  *
  * Controls whether the server is permitted to modify Zendesk data.
- * Set READ_ONLY=true to expose only read tools plus internal-note
- * commenting, and to reject every other write at the HTTP layer.
+ *
+ * - READ_ONLY=true      exposes read tools plus internal-note commenting,
+ *                       and rejects every other write at the HTTP layer.
+ * - READ_ONLY_STRICT=true additionally removes internal notes, leaving no
+ *                       write path at all.
+ *
+ * Strict is a separate boolean rather than a third value of READ_ONLY on
+ * purpose: a single READ_ONLY=true is often shared across several MCP
+ * servers, and some of them treat an unrecognised value as false with only
+ * a warning. READ_ONLY=strict would therefore silently make those servers
+ * writable.
  */
 
 import { ZendeskReadOnlyError } from '../utils/errors.js';
 
+const TRUTHY = ['true', '1'];
+const FALSY = ['false', '0', ''];
+
+function isTruthy(value) {
+  return TRUTHY.includes(value?.toLowerCase());
+}
+
 /**
- * Check whether read-only mode is enabled
+ * A value that is set but parses as neither true nor false. It resolves to
+ * false, so warning about it matters: a typo'd READ_ONLY_STRICT would
+ * otherwise silently reopen the internal-note write path.
+ */
+function isUnrecognized(value) {
+  if (value === undefined) {
+    return false;
+  }
+  const normalized = value.toLowerCase();
+  return !TRUTHY.includes(normalized) && !FALSY.includes(normalized);
+}
+
+/**
+ * Resolve the active read-only mode
+ *
+ * READ_ONLY_STRICT implies read-only even when READ_ONLY is unset or false.
+ * Anything else would let a server told to be strict come up fully writable,
+ * which is the worst available failure.
+ *
+ * @returns {'off' | 'standard' | 'strict'}
+ */
+export function getReadOnlyMode() {
+  if (isTruthy(process.env.READ_ONLY_STRICT)) {
+    return 'strict';
+  }
+  return isTruthy(process.env.READ_ONLY) ? 'standard' : 'off';
+}
+
+/**
+ * Check whether any read-only mode is enabled
  * @returns {boolean}
  */
 export function isReadOnly() {
-  const value = process.env.READ_ONLY?.toLowerCase();
-  return value === 'true' || value === '1';
+  return getReadOnlyMode() !== 'off';
+}
+
+/**
+ * Check whether strict read-only mode is enabled (no write path at all)
+ * @returns {boolean}
+ */
+export function isStrictReadOnly() {
+  return getReadOnlyMode() === 'strict';
 }
 
 /**
@@ -73,15 +125,34 @@ export const READ_ONLY_ALLOWED_TOOLS = [
 ];
 
 /**
- * Filter tools down to those allowed in read-only mode
+ * Allowlisted tools that can still modify Zendesk.
+ *
+ * Strict mode is defined as the allowlist minus these, so it stays correct
+ * as tools change instead of depending on a separately maintained list.
+ * Anything added to READ_ONLY_ALLOWED_TOOLS that writes must be named here.
+ */
+export const READ_ONLY_MUTATING_TOOLS = [
+  'add_ticket_comment'
+];
+
+/**
+ * Filter tools down to those allowed in the active read-only mode
  * @param {Array} tools - Array of tool definitions
  * @returns {Array} The same array when read-only is off, otherwise only allowed tools
  */
 export function filterToolsByReadOnly(tools) {
-  if (!isReadOnly()) {
+  const mode = getReadOnlyMode();
+
+  if (mode === 'off') {
     return tools;
   }
-  return tools.filter(tool => READ_ONLY_ALLOWED_TOOLS.includes(tool.name));
+
+  return tools.filter(tool => {
+    if (!READ_ONLY_ALLOWED_TOOLS.includes(tool.name)) {
+      return false;
+    }
+    return mode !== 'strict' || !READ_ONLY_MUTATING_TOOLS.includes(tool.name);
+  });
 }
 
 /**
@@ -122,12 +193,21 @@ function isInternalNotePayload(endpoint, data) {
  * @throws {ZendeskReadOnlyError} When the request is not permitted
  */
 export function assertReadOnlyAllowed(method, endpoint, data) {
-  if (!isReadOnly()) {
+  const mode = getReadOnlyMode();
+
+  if (mode === 'off') {
     return;
   }
 
   if (method?.toUpperCase() === 'GET') {
     return;
+  }
+
+  if (mode === 'strict') {
+    throw new ZendeskReadOnlyError(
+      `READ_ONLY_STRICT mode is enabled; ${method} ${endpoint} was blocked. ` +
+      'Only reads are permitted -- internal notes are disallowed in strict mode.'
+    );
   }
 
   if (method?.toUpperCase() === 'PUT' && isInternalNotePayload(endpoint, data)) {
@@ -145,8 +225,29 @@ export function assertReadOnlyAllowed(method, endpoint, data) {
  * Uses console.error because stdout is reserved for the MCP transport in stdio mode.
  */
 export function logReadOnlyInfo() {
-  if (isReadOnly()) {
-    console.error('[Read-Only] READ_ONLY enabled - writes are blocked');
-    console.error('[Read-Only] Permitted: reads and internal ticket notes (no public replies)');
+  const mode = getReadOnlyMode();
+
+  for (const name of ['READ_ONLY', 'READ_ONLY_STRICT']) {
+    if (isUnrecognized(process.env[name])) {
+      console.error(
+        `[Read-Only] WARNING: ${name}="${process.env[name]}" is an unrecognised value ` +
+        'and is being treated as false. Use "true" or "1" to enable it.'
+      );
+    }
   }
+
+  if (mode === 'strict') {
+    console.error('[Read-Only] mode=STRICT (READ_ONLY_STRICT) - all writes are blocked');
+    console.error('[Read-Only] Permitted: reads only (no ticket comments of any kind)');
+    return;
+  }
+
+  if (mode === 'standard') {
+    console.error('[Read-Only] mode=STANDARD (READ_ONLY) - writes are blocked');
+    console.error('[Read-Only] Permitted: reads and internal ticket notes (no public replies)');
+    console.error('[Read-Only] Set READ_ONLY_STRICT=true to remove internal notes as well');
+    return;
+  }
+
+  console.error('[Read-Only] mode=OFF - writes are permitted');
 }
