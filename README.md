@@ -122,6 +122,7 @@ ZENDESK_OAUTH_REDIRECT_URI=http://localhost:3030/zendesk/oauth/callback
 
 ```bash
 MODE=full                    # 'full' (all 55 tools) or 'lite' (10 essential tools)
+READ_ONLY=false              # 'true' blocks every write except internal ticket notes
 ANTHROPIC_API_KEY=sk-ant-... # Required for AI image/document analysis
 ZENDESK_DEBUG=false          # Enable debug logging
 ```
@@ -145,6 +146,21 @@ Control which tools are exposed with the `MODE` environment variable:
 ```bash
 MODE=lite npm start
 ```
+
+### Read-Only Mode
+
+Set `READ_ONLY=true` to prevent the server from modifying Zendesk data:
+
+```bash
+READ_ONLY=true npm start
+```
+
+- Every `create_*`, `update_*` and `delete_*` tool is unregistered &mdash; 28 tools remain in `full` mode.
+- `add_ticket_comment` stays available for **internal notes only**. A `type: 'public'` call is refused rather than downgraded, so a caller is never left believing it replied to a customer who received nothing.
+- Enforcement also sits in the HTTP client, which rejects any non-`GET` request other than an internal-note payload. A write cannot reach the Zendesk API by another route.
+- Composes with `MODE`. `MODE=lite READ_ONLY=true` still exposes all 10 lite tools, since only `add_ticket_comment` mutates and it survives.
+
+Recognized truthy values are `true` and `1` (case-insensitive); anything else, including unset, leaves the server writable.
 
 ## Available Tools
 

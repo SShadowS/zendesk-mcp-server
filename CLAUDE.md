@@ -47,6 +47,10 @@ Tests are in `tests/` mirroring the `src/` directory structure:
 - `tests/utils/document-handler.test.js` - Document handler routing tests
 - `tests/zendesk-client/tickets.test.js` - Zendesk client ticket methods tests
 - `tests/zendesk-client/base-auth.test.js` - API token auth and dual-mode getAuthHeader tests
+- `tests/config/read-only.test.js` - READ_ONLY env parsing, tool allowlist, and transport guard tests
+- `tests/zendesk-client/base-read-only.test.js` - request() enforcement of read-only mode
+- `tests/tools/add-ticket-comment-read-only.test.js` - public-reply refusal under READ_ONLY
+- `tests/server-read-only.test.js` - tool registration under READ_ONLY (and READ_ONLY + MODE=lite)
 
 Integration tests require `.env` credentials and are automatically skipped when credentials are missing.
 
@@ -132,6 +136,12 @@ Integration tests require `.env` credentials and are automatically skipped when 
    - `lite` mode: Only 10 essential tools for reduced context usage
    - Functions: `getToolMode()`, `filterToolsByMode()`, `logToolModeInfo()`
 
+11. **Read-Only Configuration** (`src/config/read-only.js`):
+   - Blocks all writes when `READ_ONLY` is `true` or `1` (case-insensitive)
+   - `READ_ONLY_ALLOWED_TOOLS` is an **allowlist**, so the flag fails closed: a write tool added later is unavailable until deliberately listed
+   - `assertReadOnlyAllowed()` is called from `ZendeskClientBase.request()` — the single chokepoint every Zendesk call passes through
+   - Functions: `isReadOnly()`, `filterToolsByReadOnly()`, `assertReadOnlyAllowed()`, `logReadOnlyInfo()`
+
 ### Tool Modes
 
 The server supports two tool modes controlled by the `MODE` environment variable:
@@ -161,6 +171,16 @@ Only 10 essential tools are registered to reduce context usage:
 - `get_document_summary` - Document summary
 
 To modify the lite mode tool list, edit `LITE_MODE_TOOLS` in `src/config/tool-modes.js`.
+
+### Read-Only Mode
+
+`READ_ONLY=true` prevents the server from modifying Zendesk. Enforcement is layered, because tool filtering alone only shapes what a client can *see*:
+
+1. **Tool filtering** (`src/server.js`): `filterToolsByReadOnly(filterToolsByMode(allTools))`. All `create_*`/`update_*`/`delete_*` tools are unregistered; 28 of 55 remain in full mode. `MODE=lite READ_ONLY=true` still yields all 10 lite tools.
+2. **Transport guard** (`ZendeskClientBase.request()`): rejects everything except `GET` and one narrow write — `PUT /tickets/{id}.json` whose body is exactly `{ticket:{comment:{…}}}` with `comment.public === false`. The payload check is required because `addTicketComment()` and `update_ticket` share the identical method and endpoint; the verb alone cannot tell them apart. Violations throw `ZendeskReadOnlyError` (403, non-retryable).
+3. **`add_ticket_comment` handler** (`src/tools/tickets.js`): `type: 'public'` throws rather than silently downgrading to an internal note — a silent downgrade would leave the caller believing it replied to a customer who received nothing. Its registered description also gains a suffix noting the restriction.
+
+To allow another read tool in read-only mode, add it to `READ_ONLY_ALLOWED_TOOLS` in `src/config/read-only.js`. The test `READ_ONLY_ALLOWED_TOOLS > covers every non-mutating tool the server registers` fails if a new read tool is added without listing it.
 
 ### Stdio + API Token Authentication (Mode A)
 

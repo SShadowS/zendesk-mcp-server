@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { classifyError, ZendeskAuthError } from '../utils/errors.js';
 import { withRetry, RetryProfiles } from '../utils/retry.js';
+import { assertReadOnlyAllowed } from '../config/read-only.js';
 
 /**
  * Base Zendesk client with core infrastructure
@@ -131,6 +132,10 @@ class ZendeskClientBase {
   }
 
   async request(method, endpoint, data = null, params = null, retryProfile = 'default') {
+    // Enforced here rather than only at the tool layer: every Zendesk call
+    // funnels through request(), so no write can reach the API by another route.
+    assertReadOnlyAllowed(method, endpoint, data);
+
     const url = `${this.getBaseUrl()}${endpoint}`;
     const requestConfig = {
       method,

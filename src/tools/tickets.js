@@ -4,7 +4,8 @@ dotenv.config();
 import { z } from 'zod';
 import axios from 'axios';
 import { getZendeskClient } from '../request-context.js';
-import { createErrorResponse } from '../utils/errors.js';
+import { createErrorResponse, ZendeskReadOnlyError } from '../utils/errors.js';
+import { isReadOnly } from '../config/read-only.js';
 import { buildTicketContext } from '../utils/ticket-context.js';
 import {
   buildNamedCustomFieldsSchema,
@@ -456,6 +457,16 @@ export const ticketsTools = [
         }),
         handler: async ({ id, body, type = "internal", author_id }) => {
           try {
+            if (type === "public" && isReadOnly()) {
+              // Refused rather than downgraded to an internal note: a silent
+              // downgrade would leave the caller believing it replied to a
+              // customer who never received anything.
+              throw new ZendeskReadOnlyError(
+                'Public replies are unavailable while READ_ONLY mode is enabled. ' +
+                "Use type:'internal' to leave an agent-only note."
+              );
+            }
+
             const zendeskClient = getZendeskClient();
             const commentData = { 
               body, 
