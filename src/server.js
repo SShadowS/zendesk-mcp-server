@@ -17,9 +17,10 @@ import { talkTools } from './tools/talk.js';
 import { chatTools } from './tools/chat.js';
 import { documentAnalysisTools } from './tools/document-analysis.js';
 import { filterToolsByMode, logToolModeInfo } from './config/tool-modes.js';
+import { filterToolsByReadOnly, isReadOnly, logReadOnlyInfo } from './config/read-only.js';
 
 // Collect all available tools (done once at module load)
-const allTools = [
+export const allTools = [
   ...ticketsTools,
   ...usersTools,
   ...organizationsTools,
@@ -36,8 +37,23 @@ const allTools = [
   ...documentAnalysisTools
 ];
 
-// Filter tools based on MODE environment variable (full or lite)
-const toolsToRegister = filterToolsByMode(allTools);
+// Filter tools based on MODE environment variable (full or lite),
+// then again on READ_ONLY, which strips every mutating tool except
+// add_ticket_comment (internal notes only).
+const toolsToRegister = filterToolsByReadOnly(filterToolsByMode(allTools));
+
+// Flagged in the description so a client can see the restriction without
+// having to attempt a public reply and read the error.
+const READ_ONLY_COMMENT_NOTE =
+  ' NOTE: READ_ONLY mode is enabled, so public replies are unavailable — ' +
+  'only internal (agent-only) notes can be added.';
+
+function describeTool(tool) {
+  if (isReadOnly() && tool.name === 'add_ticket_comment') {
+    return tool.description + READ_ONLY_COMMENT_NOTE;
+  }
+  return tool.description;
+}
 
 // Log tool mode info once at startup
 let toolModeLogged = false;
@@ -84,7 +100,7 @@ function createServer() {
     server.registerTool(
       tool.name,
       {
-        description: tool.description,
+        description: describeTool(tool),
         inputSchema: tool.schema.shape
       },
       tool.handler
@@ -140,6 +156,7 @@ function getServer() {
     // Log tool mode info once
     if (!toolModeLogged) {
       logToolModeInfo(toolsToRegister.length);
+      logReadOnlyInfo();
       toolModeLogged = true;
     }
   }

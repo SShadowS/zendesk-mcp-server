@@ -54,6 +54,13 @@ export class ZendeskValidationError extends ZendeskError {
   }
 }
 
+export class ZendeskReadOnlyError extends ZendeskError {
+  constructor(message) {
+    super(message, 403, null, false);
+    this.name = 'ZendeskReadOnlyError';
+  }
+}
+
 export class ZendeskServerError extends ZendeskError {
   constructor(message, statusCode, response) {
     super(message, statusCode, response, true);
@@ -222,6 +229,17 @@ export function createErrorResponse(error) {
     errorType: error.name,
     timestamp: error.timestamp || new Date().toISOString()
   };
+
+  if (error instanceof ZendeskReadOnlyError) {
+    return {
+      ...baseResponse,
+      content: [{
+        type: "text",
+        text: `\u{1F512} Read-Only Mode: ${error.message}`
+      }],
+      isRetryable: false
+    };
+  }
 
   if (error instanceof ZendeskRateLimitError) {
     return {
