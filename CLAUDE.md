@@ -137,10 +137,11 @@ Integration tests require `.env` credentials and are automatically skipped when 
    - Functions: `getToolMode()`, `filterToolsByMode()`, `logToolModeInfo()`
 
 11. **Read-Only Configuration** (`src/config/read-only.js`):
-   - Blocks all writes when `READ_ONLY` is `true` or `1` (case-insensitive)
+   - Two independent booleans, each accepting `true`/`1` (case-insensitive): `READ_ONLY` (standard) and `READ_ONLY_STRICT` (strict)
    - `READ_ONLY_ALLOWED_TOOLS` is an **allowlist**, so the flag fails closed: a write tool added later is unavailable until deliberately listed
+   - `READ_ONLY_MUTATING_TOOLS` names the allowlisted tools that write; strict mode is defined as the allowlist minus these
    - `assertReadOnlyAllowed()` is called from `ZendeskClientBase.request()` — the single chokepoint every Zendesk call passes through
-   - Functions: `isReadOnly()`, `filterToolsByReadOnly()`, `assertReadOnlyAllowed()`, `logReadOnlyInfo()`
+   - Functions: `getReadOnlyMode()`, `isReadOnly()`, `isStrictReadOnly()`, `filterToolsByReadOnly()`, `assertReadOnlyAllowed()`, `logReadOnlyInfo()`
 
 ### Tool Modes
 
@@ -181,6 +182,20 @@ To modify the lite mode tool list, edit `LITE_MODE_TOOLS` in `src/config/tool-mo
 3. **`add_ticket_comment` handler** (`src/tools/tickets.js`): `type: 'public'` throws rather than silently downgrading to an internal note — a silent downgrade would leave the caller believing it replied to a customer who received nothing. Its registered description also gains a suffix noting the restriction.
 
 To allow another read tool in read-only mode, add it to `READ_ONLY_ALLOWED_TOOLS` in `src/config/read-only.js`. The test `READ_ONLY_ALLOWED_TOOLS > covers every non-mutating tool the server registers` fails if a new read tool is added without listing it.
+
+#### Strict Read-Only (`READ_ONLY_STRICT`)
+
+Standard read-only deliberately leaves one write path open (internal notes). `READ_ONLY_STRICT=true` removes it, for deployments where the server must have no write path at all — e.g. a containerized sidecar reached only over an internal network, where tool registration and the transport guard *are* the enforcement boundary because the calling session holds no Zendesk credential and cannot reach the API directly.
+
+Both layers tighten together:
+1. `filterToolsByReadOnly()` subtracts `READ_ONLY_MUTATING_TOOLS` from the allowlist — 27 tools in full mode, 9 under `MODE=lite`.
+2. `assertReadOnlyAllowed()` drops the `isInternalNotePayload()` exemption, permitting `GET` only.
+
+Unregistering the tool without tightening the guard would be cosmetic, since anything holding the client object could still write. Do not change one without the other.
+
+**Why a separate boolean rather than `READ_ONLY=strict`:** a single `READ_ONLY=true` is commonly shared across several MCP servers, and some (e.g. the Azure DevOps server) treat an unrecognized `READ_ONLY` value as `false` with only a warning. `READ_ONLY=strict` would therefore silently make those servers writable.
+
+`READ_ONLY_STRICT=true` implies read-only even when `READ_ONLY` is unset or `false` — a server told to be strict must never come up writable. An unrecognized value in either variable is treated as `false` and logs a startup warning, so a typo cannot silently reopen a write path. `logReadOnlyInfo()` reports `mode=OFF`/`STANDARD`/`STRICT` at startup.
 
 ### Stdio + API Token Authentication (Mode A)
 
