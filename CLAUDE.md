@@ -89,7 +89,8 @@ Integration tests require `.env` credentials and are automatically skipped when 
 
 4. **Session Store** (`src/auth/session-store.js`):
    - Manages OAuth sessions with MCP access tokens
-   - Maps MCP tokens (24h TTL) to Zendesk tokens (2h TTL)
+   - Maps MCP access tokens (24h TTL) and MCP refresh tokens (30d, rotated on use) to Zendesk tokens
+   - `deleteSession()` drops only the access token (normal expiry, refresh still works); `revokeSession()` also kills the refresh token (Zendesk refresh failed)
    - Automatic token refresh when Zendesk token expires
    - In-memory storage (⚠️ use Redis for production)
    - Automatic cleanup of expired sessions
@@ -255,6 +256,7 @@ ZENDESK_OAUTH_REDIRECT_URI=http://localhost:3030/zendesk/oauth/callback
 
 **Token Management:**
 - **MCP Token**: 24-hour lifetime, used by clients to authenticate with MCP server
+- **MCP Refresh Token**: 30-day lifetime, `grant_type=refresh_token` at `/oauth/token` rotates both tokens; needed so remote connectors (claude.ai) do not re-authorize daily
 - **Zendesk Token**: 2-hour lifetime, automatically refreshed by server
 - **Refresh Logic**: Exponential backoff (2 attempts), skips 4xx errors
 - **Session Cleanup**: Hourly cleanup of expired sessions
