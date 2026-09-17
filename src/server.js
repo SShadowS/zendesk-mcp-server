@@ -78,7 +78,7 @@ const docs = {
 
 /**
  * Create a new MCP server instance
- * For stateless mode, we need a fresh server per request
+ * HTTP mode creates one per request (stateless transport); stdio uses getServer()
  */
 function createServer() {
   const server = new McpServer({
@@ -139,6 +139,13 @@ function createServer() {
     }
   );
 
+  // Log tool mode info once, whichever path creates the first server
+  if (!toolModeLogged) {
+    logToolModeInfo(toolsToRegister.length);
+    logReadOnlyInfo();
+    toolModeLogged = true;
+  }
+
   return server;
 }
 
@@ -152,13 +159,6 @@ let singletonServer = null;
 function getServer() {
   if (!singletonServer) {
     singletonServer = createServer();
-
-    // Log tool mode info once
-    if (!toolModeLogged) {
-      logToolModeInfo(toolsToRegister.length);
-      logReadOnlyInfo();
-      toolModeLogged = true;
-    }
   }
   return singletonServer;
 }

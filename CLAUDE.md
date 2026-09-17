@@ -76,7 +76,7 @@ Integration tests require `.env` credentials and are automatically skipped when 
 2. **HTTP Server** (`src/http-server.js`):
    - Express server with Streamable HTTP transport
    - Handles OAuth 2.1 authorization flow
-   - Manages per-session MCP connections
+   - Stateless Streamable HTTP: a fresh `StreamableHTTPServerTransport` + `createServer()` pair per request (SDK >= 1.30 refuses to reuse a stateless transport; a McpServer binds to one transport). User isolation comes from the OAuth session, not MCP session IDs
    - Provides health check and metadata endpoints
    - Enforces Bearer token authentication on `/mcp` endpoint
 
@@ -291,9 +291,8 @@ To prevent race conditions and ensure proper token isolation:
    ```
 
 4. **Lifecycle**:
-   - Transport created per session
-   - Client instance created per session
-   - Both cleaned up when transport closes
+   - MCP transport + server created per request, closed when the response closes
+   - Zendesk client instance created per OAuth session
    - Sessions auto-cleaned after 24h or on expiry
 
 ### Tool Pattern
