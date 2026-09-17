@@ -274,9 +274,16 @@ describe('updateZendeskTokens()', () => {
 // isZendeskTokenExpiring()
 // ---------------------------------------------------------------------------
 describe('isZendeskTokenExpiring()', () => {
-  it('returns true when no expiry set', () => {
+  it('returns false when no expiry set (non-expiring token, nothing to refresh)', () => {
     const session = { zendeskTokenExpiry: null };
-    expect(store.isZendeskTokenExpiring(session)).toBe(true);
+    expect(store.isZendeskTokenExpiring(session)).toBe(false);
+  });
+
+  it('stores null expiry when Zendesk omits expires_in, so no refresh per request', () => {
+    const session = store.createOAuthSession('st', 'ver');
+    store.completeOAuthFlow(session, { access_token: 'at', refresh_token: 'rt', scope: 'read' });
+    expect(session.zendeskTokenExpiry).toBeNull();
+    expect(store.isZendeskTokenExpiring(session)).toBe(false);
   });
 
   it('returns true when token is expired', () => {

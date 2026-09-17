@@ -1,6 +1,14 @@
 import { randomUUID, createHash } from 'crypto';
 
 /**
+ * Absolute expiry (ms) for a Zendesk token response, or null when Zendesk
+ * omits expires_in (non-expiring token). Storing NaN here made
+ * isZendeskTokenExpiring() return true forever, refreshing on every request.
+ */
+const tokenExpiry = (tokens) =>
+  tokens.expires_in ? Date.now() + (tokens.expires_in * 1000) : null;
+
+/**
  * In-memory session store for OAuth sessions
  * Maps MCP access tokens to session data
  *
@@ -86,7 +94,7 @@ export class SessionStore {
     // Update session with tokens
     session.zendeskAccessToken = tokens.access_token;
     session.zendeskRefreshToken = tokens.refresh_token;
-    session.zendeskTokenExpiry = Date.now() + (tokens.expires_in * 1000);
+    session.zendeskTokenExpiry = tokenExpiry(tokens);
     session.mcpAccessToken = mcpAccessToken;
     session.mcpTokenExpiry = mcpTokenExpiry;
     session.scopes = (tokens.scope || '').split(' ').filter(Boolean);
@@ -118,7 +126,7 @@ export class SessionStore {
     const session = this.sessions.get(mcpAccessToken);
     if (session) {
       session.zendeskAccessToken = tokens.access_token;
-      session.zendeskTokenExpiry = Date.now() + (tokens.expires_in * 1000);
+      session.zendeskTokenExpiry = tokenExpiry(tokens);
 
       // Update refresh token if provided (some servers rotate refresh tokens)
       if (tokens.refresh_token) {
@@ -134,8 +142,9 @@ export class SessionStore {
    * @returns {boolean}
    */
   isZendeskTokenExpiring(session, bufferMs = 60000) {
+    // No expiry recorded = non-expiring token (see tokenExpiry); never refresh
     if (!session.zendeskTokenExpiry) {
-      return true;
+      return false;
     }
     return Date.now() >= (session.zendeskTokenExpiry - bufferMs);
   }
@@ -165,7 +174,7 @@ export class SessionStore {
     // Store Zendesk tokens in session
     session.zendeskAccessToken = zendeskTokens.access_token;
     session.zendeskRefreshToken = zendeskTokens.refresh_token;
-    session.zendeskTokenExpiry = Date.now() + (zendeskTokens.expires_in * 1000);
+    session.zendeskTokenExpiry = tokenExpiry(zendeskTokens);
     session.scopes = (zendeskTokens.scope || '').split(' ').filter(Boolean);
 
     // Store authorization code with TTL (10 minutes)
