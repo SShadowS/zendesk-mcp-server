@@ -543,6 +543,58 @@ describe('exchangeAuthorizationCode()', () => {
 // ---------------------------------------------------------------------------
 // registerClient() / getRegisteredClient()
 // ---------------------------------------------------------------------------
+describe('refreshMcpToken()', () => {
+  const zendeskTokens = { access_token: 'zd', refresh_token: 'zdr', scope: 'read' };
+  const authorize = () => {
+    const session = store.createOAuthSession('s', 'v');
+    const code = store.createAuthorizationCode(session, zendeskTokens);
+    return store.exchangeAuthorizationCode(code, 'verifier');
+  };
+
+  it('exchangeAuthorizationCode also issues a refresh token', () => {
+    const first = authorize();
+    expect(first.mcpRefreshToken).toMatch(/^mcpr_/);
+    expect(first.mcpExpiresIn).toBe(86400);
+  });
+
+  it('rotates access and refresh tokens and invalidates the old ones', () => {
+    const first = authorize();
+    const second = store.refreshMcpToken(first.mcpRefreshToken);
+
+    expect(second.mcpAccessToken).toMatch(/^mcp_/);
+    expect(second.mcpAccessToken).not.toBe(first.mcpAccessToken);
+    expect(second.mcpRefreshToken).not.toBe(first.mcpRefreshToken);
+    expect(second.session).toBe(first.session);
+    expect(store.getSession(first.mcpAccessToken)).toBeNull();
+    expect(store.getSession(second.mcpAccessToken)).toBe(first.session);
+    expect(store.refreshMcpToken(first.mcpRefreshToken)).toBeNull();
+  });
+
+  it('still refreshes after the access token expired and deleteSession() ran', () => {
+    const first = authorize();
+    vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+    store.deleteSession(first.mcpAccessToken); // what authenticateBearer does on expiry
+
+    expect(store.refreshMcpToken(first.mcpRefreshToken)).not.toBeNull();
+  });
+
+  it('returns null for unknown or expired refresh tokens', () => {
+    expect(store.refreshMcpToken('mcpr_nope')).toBeNull();
+
+    const first = authorize();
+    vi.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
+    expect(store.refreshMcpToken(first.mcpRefreshToken)).toBeNull();
+  });
+
+  it('revokeSession() kills the refresh token too', () => {
+    const first = authorize();
+    store.revokeSession(first.mcpAccessToken);
+
+    expect(store.getSession(first.mcpAccessToken)).toBeNull();
+    expect(store.refreshMcpToken(first.mcpRefreshToken)).toBeNull();
+  });
+});
+
 describe('registerClient() / getRegisteredClient()', () => {
   it('stores and retrieves client data', () => {
     const clientData = { name: 'Test App', redirectUri: 'http://localhost' };
@@ -578,21 +630,30 @@ describe('cleanup()', () => {
     scope: '',
   };
 
-  it('removes sessions older than 24 hours', () => {
+  it('keeps old sessions whose tokens are still valid (age alone is not expiry)', () => {
     const session = store.createOAuthSession('s', 'v');
     const { mcpAccessToken } = store.completeOAuthFlow(session, {
       ...quickTokens,
       expires_in: 999999, // Far future Zendesk expiry
     });
 
-    // Set MCP expiry far in the future too
-    session.mcpTokenExpiry = Date.now() + 999999 * 1000;
-
-    // Advance past 24 hours
+    // Refreshed just now, so the access token is fresh even though the session is old
     vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+    const refreshed = store.refreshMcpToken(session.mcpRefreshToken);
     store.cleanup();
 
-    expect(store.sessions.has(mcpAccessToken)).toBe(false);
+    expect(store.sessions.has(mcpAccessToken)).toBe(false); // rotated away
+    expect(store.sessions.has(refreshed.mcpAccessToken)).toBe(true);
+  });
+
+  it('removes expired refresh tokens', () => {
+    const session = store.createOAuthSession('s', 'v');
+    const { mcpRefreshToken } = store.completeOAuthFlow(session, { ...quickTokens, expires_in: 999999 });
+
+    vi.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
+    store.cleanup();
+
+    expect(store.refreshTokens.has(mcpRefreshToken)).toBe(false);
   });
 
   it('removes sessions with expired Zendesk tokens', () => {

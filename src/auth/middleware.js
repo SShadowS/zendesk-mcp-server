@@ -110,7 +110,9 @@ export function createAuthMiddleware({ sessionStore, oauth, port = 3030 }) {
         await refreshZendeskTokenWithRetry(session, mcpAccessToken);
       } catch (error) {
         console.error('[Auth] Token refresh failed:', error);
-        sessionStore.deleteSession(mcpAccessToken);
+        // Zendesk side is dead: kill the refresh token too, or the client
+        // would mint a new MCP token and land right back here.
+        sessionStore.revokeSession(mcpAccessToken);
         return sendUnauthorizedResponse(res, prmUrl, 'Token refresh failed. Please re-authorize.', 'Visit /oauth/authorize to get a new access token');
       }
     }

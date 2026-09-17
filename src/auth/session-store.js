@@ -8,6 +8,9 @@ import { randomUUID, createHash } from 'crypto';
 const tokenExpiry = (tokens) =>
   tokens.expires_in ? Date.now() + (tokens.expires_in * 1000) : null;
 
+const MCP_ACCESS_TOKEN_TTL_S = 24 * 60 * 60;
+const MCP_REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * In-memory session store for OAuth sessions
  * Maps MCP access tokens to session data
@@ -27,6 +30,7 @@ export class SessionStore {
     this.sessionsByState = new Map(); // For OAuth callback lookup
     this.authorizationCodes = new Map(); // For authorization code -> session mapping
     this.registeredClients = new Map(); // For dynamic client registration
+    this.refreshTokens = new Map(); // MCP refresh token -> session
 
     console.warn('[SessionStore] Using in-memory storage - NOT FOR PRODUCTION');
     console.warn('[SessionStore] For production, implement RedisSessionStore (see Phase 6)');
@@ -85,27 +89,57 @@ export class SessionStore {
    */
   completeOAuthFlow(session, tokens) {
     // Generate MCP access token (used by client to authenticate with MCP server)
-    const mcpAccessToken = `mcp_${randomUUID().replace(/-/g, '')}`;
-
-    // MCP token TTL: 24 hours (86400 seconds)
-    const mcpExpiresIn = 24 * 60 * 60;
-    const mcpTokenExpiry = Date.now() + (mcpExpiresIn * 1000);
-
-    // Update session with tokens
     session.zendeskAccessToken = tokens.access_token;
     session.zendeskRefreshToken = tokens.refresh_token;
     session.zendeskTokenExpiry = tokenExpiry(tokens);
-    session.mcpAccessToken = mcpAccessToken;
-    session.mcpTokenExpiry = mcpTokenExpiry;
     session.scopes = (tokens.scope || '').split(' ').filter(Boolean);
 
-    // Map MCP token to session for future requests
-    this.sessions.set(mcpAccessToken, session);
+    const issued = this.issueMcpTokens(session);
 
     // Clean up state mapping (no longer needed)
     this.sessionsByState.delete(session.state);
 
-    return { mcpAccessToken, mcpExpiresIn };
+    return issued;
+  }
+
+  /**
+   * Issue a fresh MCP access token (24h) + refresh token (30d) for a session,
+   * invalidating whatever MCP tokens the session held before (rotation).
+   * @param {Object} session
+   * @returns {{ mcpAccessToken: string, mcpExpiresIn: number, mcpRefreshToken: string }}
+   */
+  issueMcpTokens(session) {
+    if (session.mcpAccessToken) this.sessions.delete(session.mcpAccessToken);
+    if (session.mcpRefreshToken) this.refreshTokens.delete(session.mcpRefreshToken);
+
+    const mcpAccessToken = `mcp_${randomUUID().replace(/-/g, '')}`;
+    const mcpRefreshToken = `mcpr_${randomUUID().replace(/-/g, '')}`;
+
+    session.mcpAccessToken = mcpAccessToken;
+    session.mcpTokenExpiry = Date.now() + (MCP_ACCESS_TOKEN_TTL_S * 1000);
+    session.mcpRefreshToken = mcpRefreshToken;
+    session.mcpRefreshTokenExpiry = Date.now() + MCP_REFRESH_TOKEN_TTL_MS;
+
+    this.sessions.set(mcpAccessToken, session);
+    this.refreshTokens.set(mcpRefreshToken, session);
+
+    return { mcpAccessToken, mcpExpiresIn: MCP_ACCESS_TOKEN_TTL_S, mcpRefreshToken };
+  }
+
+  /**
+   * refresh_token grant: rotate both tokens. Null when the refresh token is
+   * unknown (already rotated, revoked, or never issued) or expired.
+   * @param {string} refreshToken
+   * @returns {Object|null} { mcpAccessToken, mcpExpiresIn, mcpRefreshToken, session }
+   */
+  refreshMcpToken(refreshToken) {
+    const session = this.refreshTokens.get(refreshToken);
+    if (!session) return null;
+    if (Date.now() >= session.mcpRefreshTokenExpiry) {
+      this.revokeSession(session.mcpAccessToken);
+      return null;
+    }
+    return { ...this.issueMcpTokens(session), session };
   }
 
   /**
@@ -159,6 +193,17 @@ export class SessionStore {
       this.sessionsByState.delete(session.state);
       this.sessions.delete(mcpAccessToken);
     }
+  }
+
+  /**
+   * Delete a session AND its refresh token. Use when the Zendesk side is dead
+   * (refresh failed), so the client cannot mint a new MCP token for it.
+   * @param {string} mcpAccessToken
+   */
+  revokeSession(mcpAccessToken) {
+    const session = this.sessions.get(mcpAccessToken);
+    if (session) this.refreshTokens.delete(session.mcpRefreshToken);
+    this.deleteSession(mcpAccessToken);
   }
 
   /**
@@ -263,17 +308,7 @@ export class SessionStore {
     // Mark code as used (one-time use)
     codeData.used = true;
 
-    // Generate MCP access token
-    const mcpAccessToken = `mcp_${randomUUID().replace(/-/g, '')}`;
-    const mcpExpiresIn = 24 * 60 * 60; // 24 hours
-    const mcpTokenExpiry = Date.now() + (mcpExpiresIn * 1000);
-
-    // Update session with MCP token
-    session.mcpAccessToken = mcpAccessToken;
-    session.mcpTokenExpiry = mcpTokenExpiry;
-
-    // Map MCP token to session for future requests
-    this.sessions.set(mcpAccessToken, session);
+    const issued = this.issueMcpTokens(session);
 
     // Clean up state mapping (no longer needed)
     this.sessionsByState.delete(session.state);
@@ -281,7 +316,7 @@ export class SessionStore {
     // Delete authorization code (one-time use)
     this.authorizationCodes.delete(authCode);
 
-    return { mcpAccessToken, mcpExpiresIn, session };
+    return { ...issued, session };
   }
 
   /**
@@ -310,16 +345,21 @@ export class SessionStore {
    */
   cleanup() {
     const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
 
-    // Clean up sessions map
+    // Clean up sessions map (access tokens). The session itself lives on via
+    // its refresh token until that expires too.
     for (const [token, session] of this.sessions.entries()) {
-      const age = now - session.createdAt;
       const isZendeskExpired = session.zendeskTokenExpiry && now > session.zendeskTokenExpiry;
       const isMcpExpired = session.mcpTokenExpiry && now >= session.mcpTokenExpiry;
 
-      if (age > maxAge || isZendeskExpired || isMcpExpired) {
+      if (isZendeskExpired || isMcpExpired) {
         this.sessions.delete(token);
+      }
+    }
+
+    for (const [token, session] of this.refreshTokens.entries()) {
+      if (now >= session.mcpRefreshTokenExpiry) {
+        this.refreshTokens.delete(token);
       }
     }
 

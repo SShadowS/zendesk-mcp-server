@@ -21,6 +21,7 @@ function createMockSessionStore(overrides = {}) {
   return {
     getSession: vi.fn(),
     deleteSession: vi.fn(),
+    revokeSession: vi.fn(),
     updateZendeskTokens: vi.fn(),
     isZendeskTokenExpiring: vi.fn().mockReturnValue(false),
     ...overrides,
@@ -361,7 +362,7 @@ describe('authenticateBearer', () => {
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('returns 401 and deletes session when Zendesk token refresh fails', async () => {
+  it('returns 401 and revokes session (incl. refresh token) when Zendesk token refresh fails', async () => {
     const session = {
       id: 'sess-refresh-fail',
       mcpTokenExpiry: Date.now() + 60000,
@@ -378,7 +379,8 @@ describe('authenticateBearer', () => {
 
     expect(res.statusCode).toBe(401);
     expect(res.body.message).toBe('Token refresh failed. Please re-authorize.');
-    expect(sessionStore.deleteSession).toHaveBeenCalledWith('mcp_fail_refresh');
+    expect(sessionStore.revokeSession).toHaveBeenCalledWith('mcp_fail_refresh');
+    expect(sessionStore.deleteSession).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
   });
 

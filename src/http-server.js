@@ -460,7 +460,7 @@ app.post('/oauth/register', express.json(), (req, res) => {
     redirect_uris: clientRedirectUris,
 
     // Grant types and response types
-    grant_types: ['authorization_code'],
+    grant_types: ['authorization_code', 'refresh_token'],
     response_types: ['code'],
 
     // Scopes
@@ -481,49 +481,52 @@ app.post('/oauth/register', express.json(), (req, res) => {
  */
 app.post('/oauth/token', express.urlencoded({ extended: true }), express.json(), (req, res) => {
   try {
-    const { grant_type, code, code_verifier, redirect_uri, client_id } = req.body;
+    const { grant_type, code, code_verifier, refresh_token, client_id } = req.body;
 
-    console.log('[OAuth] Token exchange request:', { grant_type, client_id, has_code: !!code, has_verifier: !!code_verifier });
+    console.log('[OAuth] Token request:', { grant_type, client_id, has_code: !!code, has_verifier: !!code_verifier, has_refresh: !!refresh_token });
 
-    // Validate grant_type
-    if (grant_type !== 'authorization_code') {
+    let result;
+    if (grant_type === 'authorization_code') {
+      if (!code || !code_verifier) {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing required parameters: code and code_verifier are required'
+        });
+      }
+      result = sessionStore.exchangeAuthorizationCode(code, code_verifier);
+    } else if (grant_type === 'refresh_token') {
+      if (!refresh_token) {
+        return res.status(400).json({
+          error: 'invalid_request',
+          error_description: 'Missing required parameter: refresh_token'
+        });
+      }
+      result = sessionStore.refreshMcpToken(refresh_token);
+    } else {
       return res.status(400).json({
         error: 'unsupported_grant_type',
-        error_description: 'Only authorization_code grant type is supported'
+        error_description: 'Supported grant types: authorization_code, refresh_token'
       });
     }
-
-    // Validate required parameters
-    if (!code || !code_verifier) {
-      return res.status(400).json({
-        error: 'invalid_request',
-        error_description: 'Missing required parameters: code and code_verifier are required'
-      });
-    }
-
-    // Exchange authorization code for MCP access token
-    const result = sessionStore.exchangeAuthorizationCode(code, code_verifier);
 
     if (!result) {
-      // Invalid, expired, or already used authorization code
-      console.log('[OAuth] Token exchange failed - code invalid, expired, or already used');
-      console.log('[OAuth] Code provided:', code);
-      console.log('[OAuth] Verifier provided:', code_verifier ? 'present' : 'missing');
+      console.log(`[OAuth] ${grant_type} grant rejected - invalid, expired, or already used`);
       return res.status(400).json({
         error: 'invalid_grant',
-        error_description: 'The authorization code is invalid, expired, or has already been used'
+        error_description: 'The authorization code or refresh token is invalid, expired, or has already been used'
       });
     }
 
-    const { mcpAccessToken, mcpExpiresIn, session } = result;
+    const { mcpAccessToken, mcpExpiresIn, mcpRefreshToken, session } = result;
 
-    console.log(`[OAuth] Token exchange successful for session ${session.id}`);
+    console.log(`[OAuth] ${grant_type} grant successful for session ${session.id}`);
 
     // Return token response (RFC 6749)
     res.json({
       access_token: mcpAccessToken,
       token_type: 'Bearer',
       expires_in: mcpExpiresIn,
+      refresh_token: mcpRefreshToken,
       scope: session.scopes.join(' ')
     });
 
@@ -560,7 +563,7 @@ app.get('/.well-known/oauth-authorization-server', (req, res) => {
     registration_endpoint: `${serverUrl}/oauth/register`,
 
     // Supported grant types
-    grant_types_supported: ['authorization_code'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
 
     // Supported response types
     response_types_supported: ['code'],
